@@ -107,9 +107,55 @@ export async function borrarTarea(id) {
   })
 }
 
+export const REPETICIONES = [
+  { clave: '1-semanas', etiqueta: 'Cada semana' },
+  { clave: '2-semanas', etiqueta: 'Cada 2 semanas' },
+  { clave: '1-meses', etiqueta: 'Cada mes' },
+  { clave: '2-meses', etiqueta: 'Cada 2 meses' },
+  { clave: '3-meses', etiqueta: 'Cada 3 meses' },
+  { clave: '6-meses', etiqueta: 'Cada 6 meses' },
+  { clave: '1-años', etiqueta: 'Cada año' },
+]
+
+export function sumarIntervalo(iso, repetir) {
+  const [y, m, d] = iso.split('-').map(Number)
+  const { cada, unidad } = repetir
+  let fecha
+  if (unidad === 'semanas') fecha = new Date(y, m - 1, d + 7 * cada)
+  else {
+    const meses = unidad === 'años' ? 12 * cada : cada
+    // Clamp to the month's last day (31 Jan + 1 month = 28/29 Feb).
+    const ultimo = new Date(y, m - 1 + meses + 1, 0).getDate()
+    fecha = new Date(y, m - 1 + meses, Math.min(d, ultimo))
+  }
+  return fecha.toLocaleDateString('sv-SE')
+}
+
+const diasEntre = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000)
+const sumarDias = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d + n).toLocaleDateString('sv-SE')
+}
+
+// Marking a repeating task done creates the next one (once), with the same materials unbought.
 export async function alternarHecha(tarea) {
   const hecha = tarea.estado !== 'hecha'
-  await db.tareas.update(tarea.id, { estado: hecha ? 'hecha' : 'pendiente', completada: hecha ? Date.now() : null })
+  await db.transaction('rw', db.tareas, db.materiales, async () => {
+    await db.tareas.update(tarea.id, { estado: hecha ? 'hecha' : 'pendiente', completada: hecha ? Date.now() : null })
+    if (!hecha || !tarea.repetir || tarea.siguienteId) return
+    const base = tarea.fechaLimite ?? hoyISO()
+    const fechaLimite = sumarIntervalo(base, tarea.repetir)
+    const recordatorio = tarea.recordatorio
+      ? { ...tarea.recordatorio, fecha: sumarDias(tarea.recordatorio.fecha, diasEntre(base, fechaLimite)) }
+      : null
+    const { id, siguienteId, enCalendario, completada, ...resto } = tarea
+    const nuevaId = await db.tareas.add({
+      ...resto, fechaLimite, recordatorio, estado: 'pendiente', ejemplo: false, creada: Date.now(), completada: null,
+    })
+    const mats = await db.materiales.where('tareaId').equals(tarea.id).toArray()
+    for (const { id: _, ...m } of mats) await db.materiales.add({ ...m, tareaId: nuevaId, comprado: false })
+    await db.tareas.update(tarea.id, { siguienteId: nuevaId })
+  })
 }
 
 export async function borrarEjemplos() {

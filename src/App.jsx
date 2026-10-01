@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, PRIORIDADES, alternarHecha, borrarEjemplos, borrarTarea, elegirPresupuesto, guardarTarea, hoyISO } from './db.js'
+import { db, PRIORIDADES, REPETICIONES, alternarHecha, borrarEjemplos, borrarTarea, elegirPresupuesto, guardarTarea, hoyISO } from './db.js'
 import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
+import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
@@ -44,7 +45,7 @@ export default function App() {
   const { actual } = nav
   const habitaciones = useLiveQuery(() => db.habitaciones.orderBy('nombre').toArray(), [], [])
   const nombreHab = useMemo(() => Object.fromEntries(habitaciones.map((h) => [h.id, h.nombre])), [habitaciones])
-  const pestaña = ['inicio', 'compras', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
+  const pestaña = ['inicio', 'compras', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
 
   return (
     <div className="app">
@@ -52,12 +53,14 @@ export default function App() {
       {actual.pantalla === 'detalle' && <Detalle id={actual.id} nav={nav} nombreHab={nombreHab} />}
       {actual.pantalla === 'formulario' && <Formulario id={actual.id} nav={nav} habitaciones={habitaciones} />}
       {actual.pantalla === 'compras' && <Compras nav={nav} />}
+      {actual.pantalla === 'gastos' && <Gastos nav={nav} nombreHab={nombreHab} />}
       {actual.pantalla === 'ajustes' && <Ajustes habitaciones={habitaciones} />}
       {pestaña && (
         <nav className="pestanas" aria-label="Secciones">
           {[
             ['inicio', 'Tareas', IconoLista],
             ['compras', 'Compras', IconoCarro],
+            ['gastos', 'Gastos', IconoGastos],
             ['ajustes', 'Ajustes', IconoAjustes],
           ].map(([clave, texto, Icono]) => (
             <button key={clave} className={pestaña === clave ? 'activa' : ''} onClick={() => nav.raiz(clave)}>
@@ -224,6 +227,7 @@ function FilaTarea({ tarea, habitacion, miniatura, materialesPendientes, onAbrir
             </span>
           )}
           {habitacion && <span>{habitacion}</span>}
+          {tarea.repetir && !hecha && <span className="con-icono"><IconoRepetir /> {etiquetaRepetir(tarea.repetir)}</span>}
           {tarea.recordatorio && !hecha && <span className="con-icono"><IconoCampana /> {recordatorioTexto(tarea.recordatorio)}</span>}
           {materialesPendientes > 0 && <span>{materialesPendientes} por comprar</span>}
           {tarea.ejemplo && <span className="etiqueta-ejemplo">ejemplo</span>}
@@ -259,6 +263,7 @@ function Detalle({ id, nav, nombreHab }) {
           <div><dt>Prioridad</dt><dd><span className={`pastilla prio-${tarea.prioridad}`}>{prio?.etiqueta}</span></dd></div>
           <div><dt>Fecha límite</dt><dd className={grupoDe(tarea) === 'vencidas' ? 'tarde' : ''}>{tarea.fechaLimite ? fechaCorta(tarea.fechaLimite) : 'Sin fecha'}</dd></div>
           <div><dt>Estado</dt><dd>{hecha ? 'Hecha' : 'Pendiente'}</dd></div>
+          {tarea.repetir && <div className="ancho"><dt>Se repite</dt><dd>{etiquetaRepetir(tarea.repetir)}{hecha && tarea.siguienteId ? ' · ya se creó la siguiente' : ''}</dd></div>}
         </dl>
 
         {tarea.notas && <p className="notas">{tarea.notas}</p>}
@@ -348,7 +353,7 @@ const UNIDADES = ['ud', 'L', 'kg', 'm', 'm²', 'rollo', 'caja', 'cartucho', 'bol
 
 function Formulario({ id, nav, habitaciones }) {
   const [cargado, setCargado] = useState(!id)
-  const [t, setT] = useState({ titulo: '', notas: '', habitacionId: '', prioridad: 'media', fechaLimite: '', recFecha: '', recHora: '' })
+  const [t, setT] = useState({ titulo: '', notas: '', habitacionId: '', prioridad: 'media', fechaLimite: '', recFecha: '', recHora: '', repetir: '' })
   const [materiales, setMateriales] = useState([])
   const [fotos, setFotos] = useState([]) // existing {id, miniatura} and new {clave, imagen, miniatura}
   const [borradas, setBorradas] = useState([])
@@ -365,6 +370,7 @@ function Formulario({ id, nav, habitaciones }) {
       setT({
         ...tarea, habitacionId: tarea.habitacionId ?? '', fechaLimite: tarea.fechaLimite ?? '',
         recFecha: tarea.recordatorio?.fecha ?? '', recHora: tarea.recordatorio?.hora ?? '',
+        repetir: tarea.repetir ? `${tarea.repetir.cada}-${tarea.repetir.unidad}` : '',
       })
       setMateriales(await db.materiales.where('tareaId').equals(id).toArray())
       setFotos(await db.fotos.where('tareaId').equals(id).toArray())
@@ -412,9 +418,11 @@ function Formulario({ id, nav, habitaciones }) {
         ? [{ nombre: nuevoMat.nombre.trim(), cantidad: nuevoMat.cantidad === '' ? null : Number(String(nuevoMat.cantidad).replace(',', '.')), unidad: nuevoMat.unidad, comprado: false }]
         : []
       const recordatorio = t.recFecha ? { fecha: t.recFecha, hora: t.recHora || '09:00' } : null
+      const [cada, unidad] = t.repetir.split('-')
       const datos = {
         ...(id ? { id } : {}),
         recordatorio,
+        repetir: t.repetir ? { cada: Number(cada), unidad } : null,
         titulo: t.titulo.trim(),
         notas: t.notas.trim(),
         habitacionId: t.habitacionId === '' ? null : Number(t.habitacionId),
@@ -475,6 +483,15 @@ function Formulario({ id, nav, habitaciones }) {
           )}
           {t.recFecha && <p className="tenue pie">Después de guardar, añádelo a tu calendario desde la tarea para que el móvil te avise.</p>}
         </fieldset>
+
+        <label className="campo">
+          <span>Se repite</span>
+          <select id="repetir" value={t.repetir} onChange={cambiar('repetir')}>
+            <option value="">No se repite</option>
+            {REPETICIONES.map((r) => <option key={r.clave} value={r.clave}>{r.etiqueta}</option>)}
+          </select>
+          {t.repetir && <p className="tenue pie">Al marcarla como hecha se crea la siguiente con los mismos materiales.</p>}
+        </label>
 
         <fieldset className="campo">
           <legend>Prioridad</legend>
@@ -568,12 +585,23 @@ function Compras({ nav }) {
     return [...grupos.values()].filter((g) => g.materiales.some((m) => !m.comprado))
   }, [], null)
   const total = (datos ?? []).reduce((n, g) => n + g.materiales.filter((m) => !m.comprado).length, 0)
+  const compartir = async () => {
+    const texto = ['🛒 Lista de compras', ...(datos ?? []).flatMap(({ tarea, materiales }) => [
+      '', `*${tarea.titulo}*`,
+      ...materiales.filter((m) => !m.comprado).map((m) => `• ${m.nombre}${cantidadTexto(m) ? ` (${cantidadTexto(m)})` : ''}`),
+    ])].join('\n')
+    if (navigator.share) {
+      try { return await navigator.share({ text: texto }) } catch (e) { if (e.name === 'AbortError') return }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank', 'noopener')
+  }
 
   return (
     <main className="pantalla con-pestanas">
       <header className="cabecera-simple">
         <h1>Compras</h1>
         <p className="tenue">{total === 1 ? '1 material por comprar' : `${total} materiales por comprar`}</p>
+        {total > 0 && <button className="boton compartir" onClick={compartir}><IconoCompartir /> Compartir lista</button>}
       </header>
       {datos && datos.length === 0 && (
         <div className="vacio">
@@ -608,6 +636,37 @@ function Ajustes({ habitaciones }) {
   const [editando, setEditando] = useState(null)
   const enUso = useLiveQuery(async () => new Set((await db.tareas.toArray()).map((t) => t.habitacionId)), [], new Set())
   const monedaGuardada = useMoneda()
+  const ultimaCopia = useLiveQuery(async () => (await db.meta.get('ultimaCopia'))?.valor, [], null)
+  const [copiaPendiente, setCopiaPendiente] = useState(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [mensaje, setMensaje] = useState(null)
+  const hacerCopia = async () => {
+    setOcupado(true); setMensaje(null)
+    try {
+      await db.meta.put({ clave: 'ultimaCopia', valor: Date.now() })
+      await exportar()
+    } catch (err) {
+      console.error(err)
+      setMensaje({ error: true, texto: 'No se pudo crear la copia.' })
+    } finally { setOcupado(false) }
+  }
+  const elegirCopia = async (e) => {
+    const archivo = e.target.files[0]
+    e.target.value = ''
+    if (!archivo) return
+    setMensaje(null)
+    try { setCopiaPendiente(await leerCopia(archivo)) } catch (err) { setMensaje({ error: true, texto: err.message }) }
+  }
+  const confirmarRestaurar = async () => {
+    setOcupado(true)
+    try {
+      await restaurar(copiaPendiente)
+      setMensaje({ texto: 'Copia restaurada.' })
+    } catch (err) {
+      console.error(err)
+      setMensaje({ error: true, texto: 'No se pudo restaurar la copia. No se cambió nada.' })
+    } finally { setCopiaPendiente(null); setOcupado(false) }
+  }
   const [moneda, setMoneda] = useState(null)
   const guardarMoneda = async (e) => {
     e.preventDefault()
@@ -669,8 +728,26 @@ function Ajustes({ habitaciones }) {
         <p className="tenue pie">Se usa en los presupuestos. Ejemplos: $, €, US$.</p>
       </section>
       <section className="bloque">
-        <h2>Tus datos</h2>
-        <p className="tenue">Las tareas, fotos y presupuestos se guardan solo en este dispositivo. Los recordatorios se guardan en el calendario del móvil.</p>
+        <h2>Copia de seguridad</h2>
+        <p className="tenue">Las tareas, fotos y presupuestos se guardan solo en este móvil. Guarda una copia en Drive o mándatela por WhatsApp de vez en cuando.</p>
+        {ultimaCopia && <p className="tenue pie">Última copia: {new Date(ultimaCopia).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</p>}
+        <div className="botones-foto">
+          <button className="boton primario" disabled={ocupado} onClick={hacerCopia}><IconoDescargar /> Guardar copia</button>
+          <label className="boton">
+            Restaurar copia
+            <input id="restaurar" type="file" accept="application/json,.json" onChange={elegirCopia} hidden />
+          </label>
+        </div>
+        {copiaPendiente && (
+          <div className="confirmar">
+            <span>¿Reemplazar todo lo que hay ahora por la copia del {new Date(copiaPendiente.fecha).toLocaleDateString('es', { day: 'numeric', month: 'long' })} ({copiaPendiente.tablas.tareas?.length ?? 0} tareas)?</span>
+            <div className="confirmar-botones">
+              <button className="boton" onClick={() => setCopiaPendiente(null)}>Cancelar</button>
+              <button className="boton peligro" disabled={ocupado} onClick={confirmarRestaurar}>Reemplazar</button>
+            </div>
+          </div>
+        )}
+        {mensaje && <p className={mensaje.error ? 'error' : 'tenue'} role="status">{mensaje.texto}</p>}
       </section>
     </main>
   )
@@ -711,13 +788,34 @@ function useMoneda() {
   return useLiveQuery(async () => (await db.meta.get('moneda'))?.valor ?? '$', [], '$')
 }
 
-const PRESUPUESTO_VACIO = { proveedor: '', precio: '', telefono: '', notas: '' }
+const PRESUPUESTO_VACIO = { proveedor: '', precio: '', telefono: '', notas: '', adjunto: null }
+const MAX_PDF = 15 * 1024 * 1024
 
 function BloquePresupuestos({ tareaId }) {
   const lista = useLiveQuery(() => db.presupuestos.where('tareaId').equals(tareaId).toArray(), [tareaId], [])
   const moneda = useMoneda()
   const [form, setForm] = useState(null) // null = closed; {id?} = adding or editing
   const [error, setError] = useState('')
+  const [visor, setVisor] = useState(null)
+  const [cargandoAdjunto, setCargandoAdjunto] = useState(false)
+
+  const elegirAdjunto = async (e) => {
+    const archivo = e.target.files[0]
+    e.target.value = ''
+    if (!archivo) return
+    setError('')
+    if (archivo.type === 'application/pdf') {
+      if (archivo.size > MAX_PDF) return setError('El PDF es muy grande (máximo 15 MB).')
+      return setForm((f) => ({ ...f, adjunto: archivo, adjuntoNombre: archivo.name }))
+    }
+    setCargandoAdjunto(true)
+    try {
+      const { imagen } = await prepararFoto(archivo)
+      setForm((f) => ({ ...f, adjunto: imagen, adjuntoNombre: archivo.name }))
+    } catch {
+      setError('No se pudo leer el archivo. Prueba con una foto o un PDF.')
+    } finally { setCargandoAdjunto(false) }
+  }
 
   const ordenados = [...lista].sort((a, b) => (a.precio ?? Infinity) - (b.precio ?? Infinity))
   const precios = ordenados.map((p) => p.precio).filter((n) => n != null)
@@ -731,7 +829,7 @@ function BloquePresupuestos({ tareaId }) {
     const precio = aNumero(form.precio)
     if (!proveedor) return setError('Escribe quién te pasó el presupuesto.')
     if (form.precio.trim() && precio == null) return setError('El precio no es un número válido.')
-    const fila = { proveedor, precio, telefono: form.telefono.trim(), notas: form.notas.trim() }
+    const fila = { proveedor, precio, telefono: form.telefono.trim(), notas: form.notas.trim(), adjunto: form.adjunto ?? null, adjuntoNombre: form.adjunto ? form.adjuntoNombre ?? '' : '' }
     if (form.id) await db.presupuestos.update(form.id, fila)
     else await db.presupuestos.add({ ...fila, tareaId, elegido: false, creado: Date.now() })
     setForm(null)
@@ -768,10 +866,11 @@ function BloquePresupuestos({ tareaId }) {
                 </div>
               )}
               {p.notas && <p className="pres-notas">{p.notas}</p>}
+              {p.adjunto && <Adjunto blob={p.adjunto} nombre={p.adjuntoNombre} onVerFoto={() => setVisor(p.adjunto)} />}
               <div className="pres-acciones">
                 <button className="boton-texto" onClick={() => elegirPresupuesto(p)}>{p.elegido ? 'Quitar elección' : 'Elegir'}</button>
                 {p.telefono && <a className="boton-texto" href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`}>Llamar</a>}
-                <button className="boton-texto" onClick={() => setForm({ id: p.id, proveedor: p.proveedor, precio: p.precio == null ? '' : String(p.precio).replace('.', ','), telefono: p.telefono ?? '', notas: p.notas ?? '' })}>Editar</button>
+                <button className="boton-texto" onClick={() => setForm({ id: p.id, proveedor: p.proveedor, precio: p.precio == null ? '' : String(p.precio).replace('.', ','), telefono: p.telefono ?? '', notas: p.notas ?? '', adjunto: p.adjunto ?? null, adjuntoNombre: p.adjuntoNombre ?? '' })}>Editar</button>
                 <button className="boton-texto peligro-texto" onClick={() => db.presupuestos.delete(p.id)}>Borrar</button>
               </div>
             </li>
@@ -787,17 +886,154 @@ function BloquePresupuestos({ tareaId }) {
           </div>
           <input id="pres-telefono" type="tel" placeholder="Teléfono (opcional)" value={form.telefono} onChange={campo('telefono')} aria-label="Teléfono" />
           <textarea id="pres-notas" rows={2} placeholder="Qué incluye, plazo, garantía…" value={form.notas} onChange={campo('notas')} aria-label="Notas del presupuesto" />
+          {form.adjunto ? (
+            <div className="adjunto-form">
+              <Adjunto blob={form.adjunto} nombre={form.adjuntoNombre} onVerFoto={() => setVisor(form.adjunto)} />
+              <button type="button" className="boton-texto peligro-texto" onClick={() => setForm((f) => ({ ...f, adjunto: null, adjuntoNombre: '' }))}>Quitar</button>
+            </div>
+          ) : (
+            <div className="botones-foto">
+              <label className="boton">
+                <IconoCamara /> {cargandoAdjunto ? 'Preparando…' : 'Foto del presupuesto'}
+                <input id="pres-foto" type="file" accept="image/*" capture="environment" onChange={elegirAdjunto} hidden />
+              </label>
+              <label className="boton">
+                <IconoClip /> Foto o PDF guardado
+                <input id="pres-archivo" type="file" accept="image/*,application/pdf" onChange={elegirAdjunto} hidden />
+              </label>
+            </div>
+          )}
           {error && <p className="error" role="alert">{error}</p>}
           <div className="confirmar-botones">
             <button type="button" className="boton" onClick={() => { setForm(null); setError('') }}>Cancelar</button>
-            <button className="boton primario">{form.id ? 'Guardar' : 'Añadir'}</button>
+            <button className="boton primario" disabled={cargandoAdjunto}>{form.id ? 'Guardar' : 'Añadir'}</button>
           </div>
         </form>
       ) : (
         <button className="boton" onClick={() => setForm({ ...PRESUPUESTO_VACIO })}><IconoMas2 /> Añadir presupuesto</button>
       )}
+      {visor && <Visor blob={visor} onCerrar={() => setVisor(null)} />}
     </section>
   )
+}
+
+function Adjunto({ blob, nombre, onVerFoto }) {
+  const url = useBlobUrl(blob)
+  if (!url) return null
+  if (blob.type === 'application/pdf')
+    return (
+      <a className="adjunto-pdf" href={url} download={nombre || 'presupuesto.pdf'}>
+        <IconoClip /> <span>{nombre || 'Presupuesto.pdf'}</span>
+      </a>
+    )
+  return (
+    <button className="adjunto-foto" onClick={onVerFoto} aria-label="Ver foto del presupuesto" type="button">
+      <img src={url} alt="" />
+    </button>
+  )
+}
+
+/* ---------- Gastos ---------- */
+
+const fmtMes = new Intl.DateTimeFormat('es', { month: 'long', year: 'numeric' })
+
+function Gastos({ nav, nombreHab }) {
+  const moneda = useMoneda()
+  const datos = useLiveQuery(async () => {
+    const tareas = Object.fromEntries((await db.tareas.toArray()).map((t) => [t.id, t]))
+    const elegidos = (await db.presupuestos.toArray()).filter((p) => p.elegido && p.precio != null && tareas[p.tareaId])
+    return elegidos.map((p) => ({ presupuesto: p, tarea: tareas[p.tareaId] }))
+  }, [], null)
+
+  const r = useMemo(() => {
+    const gastado = [], previsto = []
+    for (const x of datos ?? []) (x.tarea.estado === 'hecha' ? gastado : previsto).push(x)
+    const suma = (xs) => xs.reduce((n, x) => n + x.presupuesto.precio, 0)
+    const agrupar = (xs, clave) => {
+      const m = new Map()
+      for (const x of xs) { const k = clave(x); m.set(k, (m.get(k) ?? 0) + x.presupuesto.precio) }
+      return [...m.entries()]
+    }
+    const porMes = agrupar(gastado, (x) => {
+      const d = new Date(x.tarea.completada)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    }).sort((a, b) => b[0].localeCompare(a[0]))
+    const porHab = agrupar([...gastado, ...previsto], (x) => nombreHab[x.tarea.habitacionId] ?? 'Sin habitación').sort((a, b) => b[1] - a[1])
+    previsto.sort((a, b) => (a.tarea.fechaLimite ?? '9999').localeCompare(b.tarea.fechaLimite ?? '9999'))
+    return { gastado: suma(gastado), previsto: suma(previsto), porMes, porHab, listaPrevista: previsto }
+  }, [datos, nombreHab])
+
+  const mesTexto = (k) => {
+    const [y, m] = k.split('-').map(Number)
+    const t = fmtMes.format(new Date(y, m - 1, 1))
+    return t.charAt(0).toUpperCase() + t.slice(1)
+  }
+
+  return (
+    <main className="pantalla con-pestanas">
+      <header className="cabecera-simple"><h1>Gastos</h1></header>
+      {datos && datos.length === 0 ? (
+        <div className="vacio">
+          <p className="vacio-titulo">Todavía no hay gastos.</p>
+          <p>Cuando elijas un presupuesto en una tarea, su precio aparece aquí.</p>
+        </div>
+      ) : (
+        <>
+          <div className="totales">
+            <div><span className="tenue">Gastado</span><strong>{dinero(r.gastado, moneda)}</strong></div>
+            <div><span className="tenue">Por pagar</span><strong>{dinero(r.previsto, moneda)}</strong></div>
+          </div>
+          <p className="tenue pie">Cuenta el presupuesto elegido de cada tarea. Gastado son las tareas hechas.</p>
+
+          {r.porMes.length > 0 && (
+            <section className="bloque">
+              <h2>Por mes</h2>
+              <Barras filas={r.porMes.map(([k, v]) => [mesTexto(k), v])} moneda={moneda} />
+            </section>
+          )}
+          {r.porHab.length > 0 && (
+            <section className="bloque">
+              <h2>Por habitación</h2>
+              <Barras filas={r.porHab} moneda={moneda} />
+            </section>
+          )}
+          {r.listaPrevista.length > 0 && (
+            <section className="bloque">
+              <h2>Por pagar</h2>
+              <ul className="materiales">
+                {r.listaPrevista.map(({ tarea, presupuesto }) => (
+                  <li key={presupuesto.id}>
+                    <button className="fila-gasto" onClick={() => nav.ir({ pantalla: 'detalle', id: tarea.id })}>
+                      <span className="mat-nombre">{tarea.titulo}<span className="tenue"> · {presupuesto.proveedor}</span></span>
+                      <span className="mat-cant">{dinero(presupuesto.precio, moneda)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
+    </main>
+  )
+}
+
+function Barras({ filas, moneda }) {
+  const max = Math.max(...filas.map(([, v]) => v), 1)
+  return (
+    <ul className="barras">
+      {filas.map(([etiqueta, valor]) => (
+        <li key={etiqueta}>
+          <div className="barra-texto"><span>{etiqueta}</span><span className="barra-valor">{dinero(valor, moneda)}</span></div>
+          <div className="barra-pista"><div className="barra-relleno" style={{ width: `${Math.max(2, (valor / max) * 100)}%` }} /></div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function etiquetaRepetir(r) {
+  return REPETICIONES.find((x) => x.clave === `${r.cada}-${r.unidad}`)?.etiqueta ?? `Cada ${r.cada} ${r.unidad}`
 }
 
 /* ---------- Piezas comunes ---------- */
@@ -825,3 +1061,8 @@ const IconoImagen = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="
 const IconoMas2 = () => <svg {...svg} width={18} height={18}><path d="M12 5v14M5 12h14" /></svg>
 const IconoCampana = () => <svg {...svg} width={15} height={15}><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></svg>
 const IconoCalendario = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+const IconoGastos = () => <svg {...svg}><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></svg>
+const IconoRepetir = () => <svg {...svg} width={14} height={14}><path d="M4 11V9a3 3 0 0 1 3-3h12l-3-3M20 13v2a3 3 0 0 1-3 3H5l3 3" /></svg>
+const IconoCompartir = () => <svg {...svg} width={18} height={18}><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6" /></svg>
+const IconoDescargar = () => <svg {...svg} width={18} height={18}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+const IconoClip = () => <svg {...svg} width={18} height={18}><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4L14.5 7" /></svg>

@@ -18,4 +18,8 @@ Fase 2: recordatorio por tarea (día y hora) que se añade al calendario del mó
 Google Calendar o un archivo .ics, y comparación de presupuestos por tarea (proveedor, precio,
 teléfono, notas; marca el más barato y el elegido). La moneda se cambia en Ajustes.
 
-Los datos viven solo en el navegador del dispositivo.
+Además: tareas que se repiten (al marcarlas hechas se crea la siguiente), foto o PDF adjunto en cada
+presupuesto, pestaña Gastos (gastado y por pagar según el presupuesto elegido, por mes y por
+habitación), compartir la lista de compras y copia de seguridad en un archivo .json (Ajustes).
+
+Los datos viven solo en el navegador del dispositivo; la copia de seguridad los guarda fuera.
