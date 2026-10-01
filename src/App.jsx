@@ -1,0 +1,656 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, PRIORIDADES, alternarHecha, borrarEjemplos, borrarTarea, guardarTarea } from './db.js'
+import { prepararFoto } from './imagenes.js'
+import { cantidadTexto, diasDeRetraso, fechaCorta, grupoDe, useBlobUrl } from './util.js'
+
+const GRUPOS = [
+  { clave: 'vencidas', titulo: 'Vencidas' },
+  { clave: 'hoy', titulo: 'Hoy' },
+  { clave: 'proximas', titulo: 'Próximas' },
+  { clave: 'sinFecha', titulo: 'Sin fecha' },
+]
+
+// Navigation is a small stack kept in memory. When installed (not inside a preview frame),
+// each screen also gets a history entry so Android's back button pops it.
+const usarHistorial = (() => {
+  try { return window.self === window.top } catch { return false }
+})()
+
+function useNavegacion() {
+  const [pila, setPila] = useState([{ pantalla: 'inicio' }])
+  const pop = () => setPila((p) => (p.length > 1 ? p.slice(0, -1) : p))
+  useEffect(() => {
+    if (!usarHistorial) return
+    window.addEventListener('popstate', pop)
+    return () => window.removeEventListener('popstate', pop)
+  }, [])
+  const ir = (destino) => {
+    if (usarHistorial) history.pushState(null, '')
+    setPila((p) => [...p, destino])
+  }
+  const volver = () => (usarHistorial && pila.length > 1 ? history.back() : pop())
+  const reemplazar = (destino) => setPila((p) => [...p.slice(0, -1), destino])
+  const raiz = (pantalla) => {
+    if (usarHistorial && pila.length > 1) history.go(-(pila.length - 1))
+    setPila([{ pantalla }])
+  }
+  return { actual: pila[pila.length - 1], ir, volver, reemplazar, raiz }
+}
+
+export default function App() {
+  const nav = useNavegacion()
+  const { actual } = nav
+  const habitaciones = useLiveQuery(() => db.habitaciones.orderBy('nombre').toArray(), [], [])
+  const nombreHab = useMemo(() => Object.fromEntries(habitaciones.map((h) => [h.id, h.nombre])), [habitaciones])
+  const pestaña = ['inicio', 'compras', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
+
+  return (
+    <div className="app">
+      {actual.pantalla === 'inicio' && <Inicio nav={nav} nombreHab={nombreHab} habitaciones={habitaciones} />}
+      {actual.pantalla === 'detalle' && <Detalle id={actual.id} nav={nav} nombreHab={nombreHab} />}
+      {actual.pantalla === 'formulario' && <Formulario id={actual.id} nav={nav} habitaciones={habitaciones} />}
+      {actual.pantalla === 'compras' && <Compras nav={nav} />}
+      {actual.pantalla === 'ajustes' && <Ajustes habitaciones={habitaciones} />}
+      {pestaña && (
+        <nav className="pestanas" aria-label="Secciones">
+          {[
+            ['inicio', 'Tareas', IconoLista],
+            ['compras', 'Compras', IconoCarro],
+            ['ajustes', 'Ajustes', IconoAjustes],
+          ].map(([clave, texto, Icono]) => (
+            <button key={clave} className={pestaña === clave ? 'activa' : ''} onClick={() => nav.raiz(clave)}>
+              <Icono />
+              <span>{texto}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+    </div>
+  )
+}
+
+/* ---------- Inicio ---------- */
+
+function Inicio({ nav, nombreHab, habitaciones }) {
+  const tareas = useLiveQuery(() => db.tareas.toArray(), [], null)
+  const materiales = useLiveQuery(() => db.materiales.toArray(), [], [])
+  const portadas = useLiveQuery(async () => {
+    const fotos = await db.fotos.toArray()
+    const m = {}
+    for (const f of fotos) if (!m[f.tareaId]) m[f.tareaId] = f.miniatura
+    return m
+  }, [], {})
+  const [busqueda, setBusqueda] = useState('')
+  const [habFiltro, setHabFiltro] = useState('')
+  const [prioFiltro, setPrioFiltro] = useState('')
+  const [verHechas, setVerHechas] = useState(false)
+
+  const pendientesPorTarea = useMemo(() => {
+    const m = {}
+    for (const x of materiales) if (!x.comprado) m[x.tareaId] = (m[x.tareaId] ?? 0) + 1
+    return m
+  }, [materiales])
+
+  const grupos = useMemo(() => {
+    const g = { vencidas: [], hoy: [], proximas: [], sinFecha: [], hechas: [] }
+    const q = busqueda.trim().toLowerCase()
+    for (const t of tareas ?? []) {
+      if (habFiltro && String(t.habitacionId) !== habFiltro) continue
+      if (prioFiltro && t.prioridad !== prioFiltro) continue
+      if (q && !`${t.titulo} ${t.notas}`.toLowerCase().includes(q)) continue
+      g[grupoDe(t)].push(t)
+    }
+    const peso = { alta: 0, media: 1, baja: 2 }
+    for (const k of ['vencidas', 'hoy', 'proximas'])
+      g[k].sort((a, b) => a.fechaLimite.localeCompare(b.fechaLimite) || peso[a.prioridad] - peso[b.prioridad])
+    g.sinFecha.sort((a, b) => peso[a.prioridad] - peso[b.prioridad] || b.creada - a.creada)
+    g.hechas.sort((a, b) => b.completada - a.completada)
+    return g
+  }, [tareas, busqueda, habFiltro, prioFiltro])
+
+  const pendientes = (tareas ?? []).filter((t) => t.estado !== 'hecha').length
+  const hayEjemplos = (tareas ?? []).some((t) => t.ejemplo)
+  const filtrando = busqueda || habFiltro || prioFiltro
+
+  return (
+    <main className="pantalla con-pestanas">
+      <header className="cabecera-inicio">
+        <div>
+          <p className="sobretitulo">{fechaLarga()}</p>
+          <h1>Casa</h1>
+        </div>
+        <p className="resumen">
+          <strong>{pendientes}</strong> {pendientes === 1 ? 'pendiente' : 'pendientes'}
+          {grupos.vencidas.length > 0 && <span className="pastilla roja">{grupos.vencidas.length} vencidas</span>}
+        </p>
+      </header>
+
+      <div className="filtros">
+        <input
+          id="busqueda" type="search" placeholder="Buscar tarea" value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar tarea"
+        />
+        <div className="filtros-fila">
+          <select id="filtro-hab" value={habFiltro} onChange={(e) => setHabFiltro(e.target.value)} aria-label="Habitación">
+            <option value="">Todas las habitaciones</option>
+            {habitaciones.map((h) => <option key={h.id} value={String(h.id)}>{h.nombre}</option>)}
+          </select>
+          <select id="filtro-prio" value={prioFiltro} onChange={(e) => setPrioFiltro(e.target.value)} aria-label="Prioridad">
+            <option value="">Cualquier prioridad</option>
+            {PRIORIDADES.map((p) => <option key={p.valor} value={p.valor}>{p.etiqueta}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {hayEjemplos && !filtrando && (
+        <div className="aviso">
+          <p>Estas tareas son ejemplos para que veas cómo funciona.</p>
+          <button className="enlace" onClick={borrarEjemplos}>Quitar ejemplos</button>
+        </div>
+      )}
+
+      {tareas && pendientes === 0 && !filtrando && (
+        <div className="vacio">
+          <p className="vacio-titulo">No hay nada pendiente.</p>
+          <p>Toca + para apuntar la próxima tarea de la casa.</p>
+        </div>
+      )}
+
+      {GRUPOS.map(({ clave, titulo }) =>
+        grupos[clave].length > 0 && (
+          <section key={clave} className={`grupo grupo-${clave}`}>
+            <h2>{titulo} <span className="contador">{grupos[clave].length}</span></h2>
+            <ul className="lista">
+              {grupos[clave].map((t) => (
+                <FilaTarea
+                  key={t.id} tarea={t} habitacion={nombreHab[t.habitacionId]} miniatura={portadas[t.id]}
+                  materialesPendientes={pendientesPorTarea[t.id]} onAbrir={() => nav.ir({ pantalla: 'detalle', id: t.id })}
+                />
+              ))}
+            </ul>
+          </section>
+        )
+      )}
+
+      {filtrando && tareas && GRUPOS.every(({ clave }) => grupos[clave].length === 0) && (
+        <div className="vacio"><p>Ninguna tarea coincide con el filtro.</p></div>
+      )}
+
+      {grupos.hechas.length > 0 && (
+        <section className="grupo grupo-hechas">
+          <button className="enlace" onClick={() => setVerHechas((v) => !v)} aria-expanded={verHechas}>
+            {verHechas ? 'Ocultar' : 'Ver'} hechas ({grupos.hechas.length})
+          </button>
+          {verHechas && (
+            <ul className="lista">
+              {grupos.hechas.map((t) => (
+                <FilaTarea key={t.id} tarea={t} habitacion={nombreHab[t.habitacionId]} miniatura={portadas[t.id]}
+                  onAbrir={() => nav.ir({ pantalla: 'detalle', id: t.id })} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      <button className="fab" onClick={() => nav.ir({ pantalla: 'formulario' })} aria-label="Nueva tarea">
+        <IconoMas />
+      </button>
+    </main>
+  )
+}
+
+function fechaLarga() {
+  const texto = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+function FilaTarea({ tarea, habitacion, miniatura, materialesPendientes, onAbrir }) {
+  const url = useBlobUrl(miniatura)
+  const hecha = tarea.estado === 'hecha'
+  const grupo = grupoDe(tarea)
+  return (
+    <li className={`fila prio-${tarea.prioridad} ${hecha ? 'hecha' : ''}`}>
+      <button className="check" onClick={() => alternarHecha(tarea)} aria-label={hecha ? 'Marcar pendiente' : 'Marcar hecha'} aria-pressed={hecha}>
+        <IconoCheck />
+      </button>
+      <button className="fila-cuerpo" onClick={onAbrir}>
+        <span className="fila-titulo">{tarea.titulo}</span>
+        <span className="fila-meta">
+          {tarea.fechaLimite && (
+            <span className={grupo === 'vencidas' ? 'tarde' : ''}>
+              {grupo === 'vencidas' ? `Hace ${diasDeRetraso(tarea.fechaLimite)} d` : fechaCorta(tarea.fechaLimite)}
+            </span>
+          )}
+          {habitacion && <span>{habitacion}</span>}
+          {materialesPendientes > 0 && <span>{materialesPendientes} por comprar</span>}
+          {tarea.ejemplo && <span className="etiqueta-ejemplo">ejemplo</span>}
+        </span>
+      </button>
+      {url && <img className="miniatura" src={url} alt="" onClick={onAbrir} />}
+    </li>
+  )
+}
+
+/* ---------- Detalle ---------- */
+
+function Detalle({ id, nav, nombreHab }) {
+  const tarea = useLiveQuery(() => db.tareas.get(id), [id], null)
+  const materiales = useLiveQuery(() => db.materiales.where('tareaId').equals(id).toArray(), [id], [])
+  const fotos = useLiveQuery(() => db.fotos.where('tareaId').equals(id).toArray(), [id], [])
+  const [visor, setVisor] = useState(null)
+  const [confirmando, setConfirmando] = useState(false)
+
+  if (!tarea) return <main className="pantalla"><BarraSuperior titulo="" onVolver={nav.volver} /></main>
+  const hecha = tarea.estado === 'hecha'
+  const prio = PRIORIDADES.find((p) => p.valor === tarea.prioridad)
+
+  return (
+    <main className="pantalla">
+      <BarraSuperior onVolver={nav.volver} accion={
+        <button className="boton-texto" onClick={() => nav.ir({ pantalla: 'formulario', id })}>Editar</button>
+      } />
+      <article className="detalle">
+        <h1 className={hecha ? 'tachado' : ''}>{tarea.titulo}</h1>
+        <dl className="datos">
+          <div><dt>Habitación</dt><dd>{nombreHab[tarea.habitacionId] ?? 'Sin asignar'}</dd></div>
+          <div><dt>Prioridad</dt><dd><span className={`pastilla prio-${tarea.prioridad}`}>{prio?.etiqueta}</span></dd></div>
+          <div><dt>Fecha límite</dt><dd className={grupoDe(tarea) === 'vencidas' ? 'tarde' : ''}>{tarea.fechaLimite ? fechaCorta(tarea.fechaLimite) : 'Sin fecha'}</dd></div>
+          <div><dt>Estado</dt><dd>{hecha ? 'Hecha' : 'Pendiente'}</dd></div>
+        </dl>
+
+        {tarea.notas && <p className="notas">{tarea.notas}</p>}
+
+        <section className="bloque">
+          <h2>Materiales</h2>
+          {materiales.length === 0 ? <p className="tenue">Sin materiales.</p> : (
+            <ul className="materiales">
+              {materiales.map((m) => (
+                <li key={m.id}>
+                  <label className={m.comprado ? 'comprado' : ''}>
+                    <input id={`mat-${m.id}`} type="checkbox" checked={m.comprado} onChange={() => db.materiales.update(m.id, { comprado: !m.comprado })} />
+                    <span className="mat-nombre">{m.nombre}</span>
+                    <span className="mat-cant">{cantidadTexto(m)}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="bloque">
+          <h2>Fotos</h2>
+          {fotos.length === 0 ? <p className="tenue">Sin fotos. Añádelas desde Editar.</p> : (
+            <div className="galeria">
+              {fotos.map((f) => <Miniatura key={f.id} blob={f.miniatura} onClick={() => setVisor(f)} />)}
+            </div>
+          )}
+        </section>
+
+        <div className="acciones">
+          <button className="boton primario" onClick={() => alternarHecha(tarea)}>
+            {hecha ? 'Marcar como pendiente' : 'Marcar como hecha'}
+          </button>
+          {confirmando ? (
+            <div className="confirmar">
+              <span>¿Borrar esta tarea con sus materiales y fotos?</span>
+              <div className="confirmar-botones">
+                <button className="boton" onClick={() => setConfirmando(false)}>Cancelar</button>
+                <button className="boton peligro" onClick={async () => { await borrarTarea(id); nav.volver() }}>Borrar</button>
+              </div>
+            </div>
+          ) : (
+            <button className="boton-texto peligro-texto" onClick={() => setConfirmando(true)}>Borrar tarea</button>
+          )}
+        </div>
+      </article>
+      {visor && <Visor blob={visor.imagen} onCerrar={() => setVisor(null)} />}
+    </main>
+  )
+}
+
+function Miniatura({ blob, onClick, children }) {
+  const url = useBlobUrl(blob)
+  return (
+    <div className="mini">
+      <button className="mini-boton" onClick={onClick} aria-label="Ver foto">
+        {url && <img src={url} alt="" />}
+      </button>
+      {children}
+    </div>
+  )
+}
+
+function Visor({ blob, onCerrar }) {
+  const url = useBlobUrl(blob)
+  useEffect(() => {
+    const tecla = (e) => e.key === 'Escape' && onCerrar()
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [onCerrar])
+  return (
+    <div className="visor" role="dialog" aria-label="Foto" onClick={onCerrar}>
+      {url && <img src={url} alt="" />}
+      <button className="visor-cerrar" aria-label="Cerrar"><IconoX /></button>
+    </div>
+  )
+}
+
+/* ---------- Formulario ---------- */
+
+const UNIDADES = ['ud', 'L', 'kg', 'm', 'm²', 'rollo', 'caja', 'cartucho', 'bolsa']
+
+function Formulario({ id, nav, habitaciones }) {
+  const [cargado, setCargado] = useState(!id)
+  const [t, setT] = useState({ titulo: '', notas: '', habitacionId: '', prioridad: 'media', fechaLimite: '' })
+  const [materiales, setMateriales] = useState([])
+  const [fotos, setFotos] = useState([]) // existing {id, miniatura} and new {clave, imagen, miniatura}
+  const [borradas, setBorradas] = useState([])
+  const [nuevoMat, setNuevoMat] = useState({ nombre: '', cantidad: '', unidad: 'ud' })
+  const [procesando, setProcesando] = useState(0)
+  const [error, setError] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    ;(async () => {
+      const tarea = await db.tareas.get(id)
+      if (!tarea) return nav.volver()
+      setT({ ...tarea, habitacionId: tarea.habitacionId ?? '', fechaLimite: tarea.fechaLimite ?? '' })
+      setMateriales(await db.materiales.where('tareaId').equals(id).toArray())
+      setFotos(await db.fotos.where('tareaId').equals(id).toArray())
+      setCargado(true)
+    })()
+  }, [id])
+
+  const cambiar = (campo) => (e) => setT((x) => ({ ...x, [campo]: e.target.value }))
+
+  const añadirMaterial = () => {
+    const nombre = nuevoMat.nombre.trim()
+    if (!nombre) return
+    const cantidad = nuevoMat.cantidad === '' ? null : Number(String(nuevoMat.cantidad).replace(',', '.'))
+    setMateriales((ms) => [...ms, { clave: crypto.randomUUID?.() ?? String(Math.random()), nombre, cantidad, unidad: nuevoMat.unidad, comprado: false }])
+    setNuevoMat({ nombre: '', cantidad: '', unidad: nuevoMat.unidad })
+  }
+
+  const elegirFotos = async (e) => {
+    const archivos = [...e.target.files]
+    e.target.value = ''
+    setProcesando((n) => n + archivos.length)
+    for (const a of archivos) {
+      try {
+        const f = await prepararFoto(a)
+        setFotos((fs) => [...fs, { ...f, clave: crypto.randomUUID?.() ?? String(Math.random()) }])
+      } catch {
+        setError('No se pudo leer una de las fotos. Prueba con otra imagen.')
+      } finally {
+        setProcesando((n) => n - 1)
+      }
+    }
+  }
+
+  const quitarFoto = (f) => {
+    if (f.id) setBorradas((b) => [...b, f.id])
+    setFotos((fs) => fs.filter((x) => x !== f))
+  }
+
+  const guardar = async (e) => {
+    e.preventDefault()
+    if (!t.titulo.trim()) return setError('Escribe un título para la tarea.')
+    setGuardando(true)
+    try {
+      const pendienteMat = nuevoMat.nombre.trim()
+        ? [{ nombre: nuevoMat.nombre.trim(), cantidad: nuevoMat.cantidad === '' ? null : Number(String(nuevoMat.cantidad).replace(',', '.')), unidad: nuevoMat.unidad, comprado: false }]
+        : []
+      const datos = {
+        ...(id ? { id } : {}),
+        titulo: t.titulo.trim(),
+        notas: t.notas.trim(),
+        habitacionId: t.habitacionId === '' ? null : Number(t.habitacionId),
+        prioridad: t.prioridad,
+        fechaLimite: t.fechaLimite || null,
+        ejemplo: false,
+      }
+      const nuevas = fotos.filter((f) => !f.id).map(({ imagen, miniatura, fecha }) => ({ imagen, miniatura, fecha }))
+      const tareaId = await guardarTarea(datos, [...materiales, ...pendienteMat], nuevas, borradas)
+      if (id) nav.volver()
+      else nav.reemplazar({ pantalla: 'detalle', id: tareaId })
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo guardar. Comprueba que el móvil tiene espacio libre.')
+      setGuardando(false)
+    }
+  }
+
+  if (!cargado) return <main className="pantalla"><BarraSuperior onVolver={nav.volver} /></main>
+
+  return (
+    <main className="pantalla">
+      <BarraSuperior titulo={id ? 'Editar tarea' : 'Nueva tarea'} onVolver={nav.volver} />
+      <form className="formulario" onSubmit={guardar} noValidate>
+        <label className="campo">
+          <span>Título</span>
+          <input id="titulo" value={t.titulo} onChange={cambiar('titulo')} placeholder="Ej.: Cambiar bombilla del pasillo" autoFocus={!id} required />
+        </label>
+
+        <div className="campos-fila">
+          <label className="campo">
+            <span>Habitación</span>
+            <select id="habitacion" value={String(t.habitacionId)} onChange={cambiar('habitacionId')}>
+              <option value="">Sin asignar</option>
+              {habitaciones.map((h) => <option key={h.id} value={String(h.id)}>{h.nombre}</option>)}
+            </select>
+          </label>
+          <label className="campo">
+            <span>Fecha límite</span>
+            <input id="fecha" type="date" value={t.fechaLimite} onChange={cambiar('fechaLimite')} />
+          </label>
+        </div>
+
+        <fieldset className="campo">
+          <legend>Prioridad</legend>
+          <div className="segmentado">
+            {PRIORIDADES.map((p) => (
+              <label key={p.valor} className={`seg prio-${p.valor} ${t.prioridad === p.valor ? 'activo' : ''}`}>
+                <input id={`prio-${p.valor}`} type="radio" name="prioridad" value={p.valor} checked={t.prioridad === p.valor} onChange={cambiar('prioridad')} />
+                {p.etiqueta}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <label className="campo">
+          <span>Notas</span>
+          <textarea id="notas" rows={3} value={t.notas} onChange={cambiar('notas')} placeholder="Medidas, modelo, pasos a seguir…" />
+        </label>
+
+        <fieldset className="campo">
+          <legend>Materiales</legend>
+          {materiales.length > 0 && (
+            <ul className="materiales editables">
+              {materiales.map((m) => (
+                <li key={m.id ?? m.clave}>
+                  <span className="mat-nombre">{m.nombre}</span>
+                  <span className="mat-cant">{cantidadTexto(m)}</span>
+                  <button type="button" className="quitar" aria-label={`Quitar ${m.nombre}`} onClick={() => setMateriales((ms) => ms.filter((x) => x !== m))}><IconoX /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="nuevo-material">
+            <input id="mat-nombre" placeholder="Material" value={nuevoMat.nombre} onChange={(e) => setNuevoMat((x) => ({ ...x, nombre: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); añadirMaterial() } }} aria-label="Nombre del material" />
+            <input id="mat-cant" inputMode="decimal" placeholder="Cant." value={nuevoMat.cantidad} onChange={(e) => setNuevoMat((x) => ({ ...x, cantidad: e.target.value }))} aria-label="Cantidad" />
+            <select id="mat-unidad" value={nuevoMat.unidad} onChange={(e) => setNuevoMat((x) => ({ ...x, unidad: e.target.value }))} aria-label="Unidad">
+              {UNIDADES.map((u) => <option key={u}>{u}</option>)}
+            </select>
+            <button type="button" className="boton pequeño" onClick={añadirMaterial}>Añadir</button>
+          </div>
+        </fieldset>
+
+        <fieldset className="campo">
+          <legend>Fotos</legend>
+          <div className="galeria">
+            {fotos.map((f) => (
+              <Miniatura key={f.id ?? f.clave} blob={f.miniatura}>
+                <button type="button" className="quitar-foto" aria-label="Quitar foto" onClick={() => quitarFoto(f)}><IconoX /></button>
+              </Miniatura>
+            ))}
+            {Array.from({ length: procesando }, (_, i) => <div key={`p${i}`} className="mini cargando" />)}
+          </div>
+          <div className="botones-foto">
+            <label className="boton">
+              <IconoCamara /> Hacer foto
+              <input id="foto-camara" type="file" accept="image/*" capture="environment" onChange={elegirFotos} hidden />
+            </label>
+            <label className="boton">
+              <IconoImagen /> Elegir de la galería
+              <input id="foto-galeria" type="file" accept="image/*" multiple onChange={elegirFotos} hidden />
+            </label>
+          </div>
+        </fieldset>
+
+        {error && <p className="error" role="alert">{error}</p>}
+
+        <div className="barra-guardar">
+          <button type="submit" className="boton primario ancho" disabled={guardando || procesando > 0}>
+            {procesando > 0 ? 'Preparando fotos…' : guardando ? 'Guardando…' : 'Guardar tarea'}
+          </button>
+        </div>
+      </form>
+    </main>
+  )
+}
+
+/* ---------- Compras ---------- */
+
+function Compras({ nav }) {
+  const datos = useLiveQuery(async () => {
+    const mats = await db.materiales.toArray()
+    const tareas = await db.tareas.toArray()
+    const porId = Object.fromEntries(tareas.map((t) => [t.id, t]))
+    const grupos = new Map()
+    for (const m of mats) {
+      const t = porId[m.tareaId]
+      if (!t || t.estado === 'hecha') continue
+      if (!grupos.has(t.id)) grupos.set(t.id, { tarea: t, materiales: [] })
+      grupos.get(t.id).materiales.push(m)
+    }
+    return [...grupos.values()].filter((g) => g.materiales.some((m) => !m.comprado))
+  }, [], null)
+  const total = (datos ?? []).reduce((n, g) => n + g.materiales.filter((m) => !m.comprado).length, 0)
+
+  return (
+    <main className="pantalla con-pestanas">
+      <header className="cabecera-simple">
+        <h1>Compras</h1>
+        <p className="tenue">{total === 1 ? '1 material por comprar' : `${total} materiales por comprar`}</p>
+      </header>
+      {datos && datos.length === 0 && (
+        <div className="vacio">
+          <p className="vacio-titulo">Lista vacía.</p>
+          <p>Los materiales que añadas a tus tareas aparecerán aquí.</p>
+        </div>
+      )}
+      {(datos ?? []).map(({ tarea, materiales }) => (
+        <section key={tarea.id} className="bloque compra">
+          <button className="compra-tarea" onClick={() => nav.ir({ pantalla: 'detalle', id: tarea.id })}>{tarea.titulo}</button>
+          <ul className="materiales">
+            {materiales.map((m) => (
+              <li key={m.id}>
+                <label className={m.comprado ? 'comprado' : ''}>
+                  <input id={`compra-${m.id}`} type="checkbox" checked={m.comprado} onChange={() => db.materiales.update(m.id, { comprado: !m.comprado })} />
+                  <span className="mat-nombre">{m.nombre}</span>
+                  <span className="mat-cant">{cantidadTexto(m)}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </main>
+  )
+}
+
+/* ---------- Ajustes ---------- */
+
+function Ajustes({ habitaciones }) {
+  const [nueva, setNueva] = useState('')
+  const [editando, setEditando] = useState(null)
+  const enUso = useLiveQuery(async () => new Set((await db.tareas.toArray()).map((t) => t.habitacionId)), [], new Set())
+
+  const añadir = async (e) => {
+    e.preventDefault()
+    const nombre = nueva.trim()
+    if (!nombre) return
+    await db.habitaciones.add({ nombre })
+    setNueva('')
+  }
+  const renombrar = async (e) => {
+    e.preventDefault()
+    const nombre = editando.nombre.trim()
+    if (nombre) await db.habitaciones.update(editando.id, { nombre })
+    setEditando(null)
+  }
+
+  return (
+    <main className="pantalla con-pestanas">
+      <header className="cabecera-simple"><h1>Ajustes</h1></header>
+      <section className="bloque">
+        <h2>Habitaciones</h2>
+        <ul className="habitaciones">
+          {habitaciones.map((h) => (
+            <li key={h.id}>
+              {editando?.id === h.id ? (
+                <form className="fila-form" onSubmit={renombrar}>
+                  <input id={`hab-${h.id}`} value={editando.nombre} onChange={(e) => setEditando({ ...editando, nombre: e.target.value })} autoFocus aria-label="Nombre de la habitación" />
+                  <button className="boton pequeño">Guardar</button>
+                </form>
+              ) : (
+                <>
+                  <span>{h.nombre}</span>
+                  <span className="hab-acciones">
+                    <button className="boton-texto" onClick={() => setEditando({ id: h.id, nombre: h.nombre })}>Renombrar</button>
+                    {!enUso.has(h.id) && <button className="boton-texto peligro-texto" onClick={() => db.habitaciones.delete(h.id)}>Quitar</button>}
+                  </span>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+        <form className="fila-form" onSubmit={añadir}>
+          <input id="hab-nueva" placeholder="Nueva habitación" value={nueva} onChange={(e) => setNueva(e.target.value)} aria-label="Nueva habitación" />
+          <button className="boton pequeño">Añadir</button>
+        </form>
+        <p className="tenue pie">Solo puedes quitar habitaciones que no usa ninguna tarea.</p>
+      </section>
+      <section className="bloque">
+        <h2>Tus datos</h2>
+        <p className="tenue">Las tareas y las fotos se guardan solo en este dispositivo. La copia de seguridad y los recordatorios en el calendario llegan en la siguiente fase.</p>
+      </section>
+    </main>
+  )
+}
+
+/* ---------- Piezas comunes ---------- */
+
+function BarraSuperior({ titulo, onVolver, accion }) {
+  return (
+    <div className="barra-superior">
+      <button className="volver" onClick={onVolver} aria-label="Volver"><IconoAtras /></button>
+      {titulo && <span className="barra-titulo">{titulo}</span>}
+      <span className="barra-accion">{accion}</span>
+    </div>
+  )
+}
+
+const svg = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
+const IconoMas = () => <svg {...svg} width={28} height={28}><path d="M12 5v14M5 12h14" /></svg>
+const IconoCheck = () => <svg {...svg} width={16} height={16} strokeWidth={3}><path d="m5 12 5 5 9-10" /></svg>
+const IconoX = () => <svg {...svg} width={16} height={16}><path d="M6 6l12 12M18 6 6 18" /></svg>
+const IconoAtras = () => <svg {...svg}><path d="M15 5l-7 7 7 7" /></svg>
+const IconoLista = () => <svg {...svg}><path d="M9 6h11M9 12h11M9 18h11" /><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2" /></svg>
+const IconoCarro = () => <svg {...svg}><path d="M3 4h2l2.4 11h10.8L20 8H6.2" /><circle cx="9" cy="19.5" r="1.3" /><circle cx="17" cy="19.5" r="1.3" /></svg>
+const IconoAjustes = () => <svg {...svg}><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+const IconoCamara = () => <svg {...svg} width={18} height={18}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+const IconoImagen = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="m4 17 5-5 4 4 3-3 4 4" /></svg>
