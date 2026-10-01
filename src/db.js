@@ -10,6 +10,10 @@ db.version(1).stores({
   meta: 'clave',
 })
 
+db.version(2).stores({
+  presupuestos: '++id, tareaId',
+})
+
 export const PRIORIDADES = [
   { valor: 'alta', etiqueta: 'Alta' },
   { valor: 'media', etiqueta: 'Media' },
@@ -95,8 +99,9 @@ export async function guardarTarea(tarea, materiales, fotosNuevas, fotosBorradas
 }
 
 export async function borrarTarea(id) {
-  await db.transaction('rw', db.tareas, db.materiales, db.fotos, async () => {
+  await db.transaction('rw', db.tareas, db.materiales, db.fotos, db.presupuestos, async () => {
     await db.materiales.where('tareaId').equals(id).delete()
+    await db.presupuestos.where('tareaId').equals(id).delete()
     await db.fotos.where('tareaId').equals(id).delete()
     await db.tareas.delete(id)
   })
@@ -110,4 +115,12 @@ export async function alternarHecha(tarea) {
 export async function borrarEjemplos() {
   const ids = await db.tareas.filter((t) => !!t.ejemplo).primaryKeys()
   for (const id of ids) await borrarTarea(id)
+}
+
+// Only one quote per task can be the chosen one; picking it again unpicks it.
+export async function elegirPresupuesto(p) {
+  await db.transaction('rw', db.presupuestos, async () => {
+    await db.presupuestos.where('tareaId').equals(p.tareaId).modify({ elegido: false })
+    if (!p.elegido) await db.presupuestos.update(p.id, { elegido: true })
+  })
 }

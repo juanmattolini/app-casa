@@ -43,3 +43,29 @@ export function cantidadTexto(m) {
   if (m.cantidad == null || m.cantidad === '') return ''
   return `${String(m.cantidad).replace('.', ',')} ${m.unidad ?? ''}`.trim()
 }
+
+const fmtHora = (hora) => (hora || '09:00').replace(/^0/, '')
+
+export function recordatorioTexto(r) {
+  if (!r?.fecha) return ''
+  return `${fechaCorta(r.fecha)}, ${fmtHora(r.hora)}`
+}
+
+const fmtEntero = new Intl.NumberFormat('es', { maximumFractionDigits: 0, useGrouping: 'always' })
+const fmtDecimal = new Intl.NumberFormat('es', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' })
+
+export function dinero(n, moneda = '$') {
+  if (n == null || Number.isNaN(n)) return ''
+  const r = Math.round(n * 100) / 100
+  return `${moneda} ${(r % 1 ? fmtDecimal : fmtEntero).format(r)}`.trim()
+}
+
+export function aNumero(texto) {
+  const limpio = String(texto ?? '').trim().replace(/\s/g, '')
+  if (!limpio) return null
+  // "1.250,50" or "1250.5" or "1,250.50": the last separator is the decimal one if followed by 1-2 digits.
+  const m = limpio.match(/^(.*?)([.,](\d{1,2}))?$/)
+  const entero = m[1].replace(/[.,]/g, '')
+  const n = Number(m[2] ? `${entero}.${m[3]}` : entero)
+  return Number.isFinite(n) ? n : null
+}

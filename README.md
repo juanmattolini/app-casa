@@ -14,5 +14,8 @@ npm run build          # PWA instalable en dist/ (subir a GitHub Pages o Netlify
 npm run build:preview  # un único HTML en dist-preview/ para la vista previa compartible
 ```
 
-Los datos viven solo en el navegador del dispositivo. La copia de seguridad y los recordatorios por
-calendario (.ics) llegan en la fase 2.
+Fase 2: recordatorio por tarea (día y hora) que se añade al calendario del móvil con un enlace de
+Google Calendar o un archivo .ics, y comparación de presupuestos por tarea (proveedor, precio,
+teléfono, notas; marca el más barato y el elegido). La moneda se cambia en Ajustes.
+
+Los datos viven solo en el navegador del dispositivo.

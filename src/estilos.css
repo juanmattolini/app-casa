@@ -245,3 +245,29 @@ fieldset.campo > legend + * { clear: both; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Recordatorios y presupuestos ---------- */
+.con-icono { display: inline-flex; align-items: center; gap: 4px; }
+.con-icono svg { flex: none; }
+.tarjeta { display: grid; gap: 10px; padding: 14px; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); }
+.rec-cuando { display: flex; align-items: center; gap: 8px; font-family: var(--f-titulo); font-weight: 600; font-size: 1.1rem; }
+.recordatorio .botones-foto { margin-top: 0; }
+a.boton { text-decoration: none; color: inherit; }
+a.boton.primario { color: var(--sobre-pino); }
+.hora-quitar { display: flex; align-items: center; gap: 4px; }
+
+.presupuestos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.presupuestos li {
+  display: grid; gap: 4px; padding: 12px 14px 4px; background: var(--papel);
+  border: 1px solid var(--linea); border-radius: var(--radio);
+}
+.presupuestos li.elegido { border: 2px solid var(--pino); }
+.pres-cabeza { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.pres-proveedor { font-weight: 600; overflow-wrap: anywhere; }
+.pres-precio { font-family: var(--f-titulo); font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pres-marcas { display: flex; gap: 6px; }
+.pastilla.elegido { background: var(--pino); color: var(--sobre-pino); }
+.pres-notas { white-space: pre-wrap; color: var(--tinta-2); font-size: 0.92rem; }
+.pres-acciones { display: flex; flex-wrap: wrap; margin: 0 -12px; }
+.pres-acciones .boton-texto { text-decoration: none; font-size: 0.92rem; }
+.form-presupuesto .confirmar-botones { margin-top: 2px; }

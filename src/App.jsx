@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, PRIORIDADES, alternarHecha, borrarEjemplos, borrarTarea, guardarTarea } from './db.js'
+import { db, PRIORIDADES, alternarHecha, borrarEjemplos, borrarTarea, elegirPresupuesto, guardarTarea, hoyISO } from './db.js'
+import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
 import { prepararFoto } from './imagenes.js'
-import { cantidadTexto, diasDeRetraso, fechaCorta, grupoDe, useBlobUrl } from './util.js'
+import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
 const GRUPOS = [
   { clave: 'vencidas', titulo: 'Vencidas' },
@@ -223,6 +224,7 @@ function FilaTarea({ tarea, habitacion, miniatura, materialesPendientes, onAbrir
             </span>
           )}
           {habitacion && <span>{habitacion}</span>}
+          {tarea.recordatorio && !hecha && <span className="con-icono"><IconoCampana /> {recordatorioTexto(tarea.recordatorio)}</span>}
           {materialesPendientes > 0 && <span>{materialesPendientes} por comprar</span>}
           {tarea.ejemplo && <span className="etiqueta-ejemplo">ejemplo</span>}
         </span>
@@ -261,6 +263,8 @@ function Detalle({ id, nav, nombreHab }) {
 
         {tarea.notas && <p className="notas">{tarea.notas}</p>}
 
+        {!hecha && <BloqueRecordatorio tarea={tarea} materiales={materiales} onEditar={() => nav.ir({ pantalla: 'formulario', id })} />}
+
         <section className="bloque">
           <h2>Materiales</h2>
           {materiales.length === 0 ? <p className="tenue">Sin materiales.</p> : (
@@ -277,6 +281,8 @@ function Detalle({ id, nav, nombreHab }) {
             </ul>
           )}
         </section>
+
+        <BloquePresupuestos tareaId={id} />
 
         <section className="bloque">
           <h2>Fotos</h2>
@@ -342,7 +348,7 @@ const UNIDADES = ['ud', 'L', 'kg', 'm', 'm²', 'rollo', 'caja', 'cartucho', 'bol
 
 function Formulario({ id, nav, habitaciones }) {
   const [cargado, setCargado] = useState(!id)
-  const [t, setT] = useState({ titulo: '', notas: '', habitacionId: '', prioridad: 'media', fechaLimite: '' })
+  const [t, setT] = useState({ titulo: '', notas: '', habitacionId: '', prioridad: 'media', fechaLimite: '', recFecha: '', recHora: '' })
   const [materiales, setMateriales] = useState([])
   const [fotos, setFotos] = useState([]) // existing {id, miniatura} and new {clave, imagen, miniatura}
   const [borradas, setBorradas] = useState([])
@@ -356,7 +362,10 @@ function Formulario({ id, nav, habitaciones }) {
     ;(async () => {
       const tarea = await db.tareas.get(id)
       if (!tarea) return nav.volver()
-      setT({ ...tarea, habitacionId: tarea.habitacionId ?? '', fechaLimite: tarea.fechaLimite ?? '' })
+      setT({
+        ...tarea, habitacionId: tarea.habitacionId ?? '', fechaLimite: tarea.fechaLimite ?? '',
+        recFecha: tarea.recordatorio?.fecha ?? '', recHora: tarea.recordatorio?.hora ?? '',
+      })
       setMateriales(await db.materiales.where('tareaId').equals(id).toArray())
       setFotos(await db.fotos.where('tareaId').equals(id).toArray())
       setCargado(true)
@@ -402,8 +411,10 @@ function Formulario({ id, nav, habitaciones }) {
       const pendienteMat = nuevoMat.nombre.trim()
         ? [{ nombre: nuevoMat.nombre.trim(), cantidad: nuevoMat.cantidad === '' ? null : Number(String(nuevoMat.cantidad).replace(',', '.')), unidad: nuevoMat.unidad, comprado: false }]
         : []
+      const recordatorio = t.recFecha ? { fecha: t.recFecha, hora: t.recHora || '09:00' } : null
       const datos = {
         ...(id ? { id } : {}),
+        recordatorio,
         titulo: t.titulo.trim(),
         notas: t.notas.trim(),
         habitacionId: t.habitacionId === '' ? null : Number(t.habitacionId),
@@ -446,6 +457,24 @@ function Formulario({ id, nav, habitaciones }) {
             <input id="fecha" type="date" value={t.fechaLimite} onChange={cambiar('fechaLimite')} />
           </label>
         </div>
+
+        <fieldset className="campo">
+          <legend>Recordatorio</legend>
+          {t.recFecha ? (
+            <div className="campos-fila recordatorio-campos">
+              <input id="rec-fecha" type="date" value={t.recFecha} onChange={cambiar('recFecha')} aria-label="Día del recordatorio" />
+              <div className="hora-quitar">
+                <input id="rec-hora" type="time" value={t.recHora} onChange={cambiar('recHora')} aria-label="Hora del recordatorio" />
+                <button type="button" className="quitar" aria-label="Quitar recordatorio" onClick={() => setT((x) => ({ ...x, recFecha: '', recHora: '' }))}><IconoX /></button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="boton" onClick={() => setT((x) => ({ ...x, recFecha: x.fechaLimite && x.fechaLimite >= hoyISO() ? x.fechaLimite : hoyISO(1), recHora: '09:00' }))}>
+              <IconoCampana /> Poner recordatorio
+            </button>
+          )}
+          {t.recFecha && <p className="tenue pie">Después de guardar, añádelo a tu calendario desde la tarea para que el móvil te avise.</p>}
+        </fieldset>
 
         <fieldset className="campo">
           <legend>Prioridad</legend>
@@ -578,6 +607,13 @@ function Ajustes({ habitaciones }) {
   const [nueva, setNueva] = useState('')
   const [editando, setEditando] = useState(null)
   const enUso = useLiveQuery(async () => new Set((await db.tareas.toArray()).map((t) => t.habitacionId)), [], new Set())
+  const monedaGuardada = useMoneda()
+  const [moneda, setMoneda] = useState(null)
+  const guardarMoneda = async (e) => {
+    e.preventDefault()
+    await db.meta.put({ clave: 'moneda', valor: (moneda ?? monedaGuardada).trim() })
+    setMoneda(null)
+  }
 
   const añadir = async (e) => {
     e.preventDefault()
@@ -625,10 +661,142 @@ function Ajustes({ habitaciones }) {
         <p className="tenue pie">Solo puedes quitar habitaciones que no usa ninguna tarea.</p>
       </section>
       <section className="bloque">
+        <h2>Moneda</h2>
+        <form className="fila-form" onSubmit={guardarMoneda}>
+          <input id="moneda" value={moneda ?? monedaGuardada} onChange={(e) => setMoneda(e.target.value)} maxLength={5} aria-label="Símbolo de moneda" />
+          <button className="boton pequeño">Guardar</button>
+        </form>
+        <p className="tenue pie">Se usa en los presupuestos. Ejemplos: $, €, US$.</p>
+      </section>
+      <section className="bloque">
         <h2>Tus datos</h2>
-        <p className="tenue">Las tareas y las fotos se guardan solo en este dispositivo. La copia de seguridad y los recordatorios en el calendario llegan en la siguiente fase.</p>
+        <p className="tenue">Las tareas, fotos y presupuestos se guardan solo en este dispositivo. Los recordatorios se guardan en el calendario del móvil.</p>
       </section>
     </main>
+  )
+}
+
+/* ---------- Recordatorio ---------- */
+
+function BloqueRecordatorio({ tarea, materiales, onEditar }) {
+  const r = tarea.recordatorio
+  const marcar = () => db.tareas.update(tarea.id, { enCalendario: `${r.fecha} ${r.hora}` })
+  const yaAñadido = r && tarea.enCalendario === `${r.fecha} ${r.hora}`
+  return (
+    <section className="bloque">
+      <h2>Recordatorio</h2>
+      {!r ? (
+        <p className="tenue">Sin recordatorio. <button className="enlace" onClick={onEditar}>Poner uno</button></p>
+      ) : (
+        <div className="tarjeta recordatorio">
+          <p className="rec-cuando"><IconoCampana /> {recordatorioTexto(r)}</p>
+          {yaAñadido && <p className="tenue">Ya lo añadiste al calendario.</p>}
+          <div className="botones-foto">
+            <a className="boton primario" href={enlaceGoogle(tarea, materiales)} target="_blank" rel="noopener" onClick={marcar}>
+              <IconoCalendario /> Añadir a Google Calendar
+            </a>
+            <button className="boton" onClick={async () => { await abrirIcs(archivoIcs(tarea, materiales)); marcar() }}>
+              Otro calendario (.ics)
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+/* ---------- Presupuestos ---------- */
+
+function useMoneda() {
+  return useLiveQuery(async () => (await db.meta.get('moneda'))?.valor ?? '$', [], '$')
+}
+
+const PRESUPUESTO_VACIO = { proveedor: '', precio: '', telefono: '', notas: '' }
+
+function BloquePresupuestos({ tareaId }) {
+  const lista = useLiveQuery(() => db.presupuestos.where('tareaId').equals(tareaId).toArray(), [tareaId], [])
+  const moneda = useMoneda()
+  const [form, setForm] = useState(null) // null = closed; {id?} = adding or editing
+  const [error, setError] = useState('')
+
+  const ordenados = [...lista].sort((a, b) => (a.precio ?? Infinity) - (b.precio ?? Infinity))
+  const precios = ordenados.map((p) => p.precio).filter((n) => n != null)
+  const minimo = precios.length ? Math.min(...precios) : null
+  const maximo = precios.length ? Math.max(...precios) : null
+  const elegido = lista.find((p) => p.elegido)
+
+  const guardar = async (e) => {
+    e.preventDefault()
+    const proveedor = form.proveedor.trim()
+    const precio = aNumero(form.precio)
+    if (!proveedor) return setError('Escribe quién te pasó el presupuesto.')
+    if (form.precio.trim() && precio == null) return setError('El precio no es un número válido.')
+    const fila = { proveedor, precio, telefono: form.telefono.trim(), notas: form.notas.trim() }
+    if (form.id) await db.presupuestos.update(form.id, fila)
+    else await db.presupuestos.add({ ...fila, tareaId, elegido: false, creado: Date.now() })
+    setForm(null)
+    setError('')
+  }
+  const campo = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  return (
+    <section className="bloque">
+      <h2>Presupuestos {lista.length > 0 && <span className="contador">{lista.length}</span>}</h2>
+
+      {lista.length >= 2 && minimo != null && (
+        <p className="tenue">
+          {elegido?.precio != null && maximo > elegido.precio
+            ? `Con ${elegido.proveedor} ahorras ${dinero(maximo - elegido.precio, moneda)} frente al más caro.`
+            : maximo > minimo ? `Diferencia entre el más barato y el más caro: ${dinero(maximo - minimo, moneda)}.` : 'Todos cuestan lo mismo.'}
+        </p>
+      )}
+
+      {lista.length === 0 && !form && <p className="tenue">Apunta los presupuestos que te pasen para compararlos.</p>}
+
+      {ordenados.length > 0 && (
+        <ul className="presupuestos">
+          {ordenados.map((p) => (
+            <li key={p.id} className={p.elegido ? 'elegido' : ''}>
+              <div className="pres-cabeza">
+                <span className="pres-proveedor">{p.proveedor}</span>
+                <span className="pres-precio">{p.precio == null ? 'Sin precio' : dinero(p.precio, moneda)}</span>
+              </div>
+              {(p.elegido || (lista.length >= 2 && p.precio != null && p.precio === minimo && minimo !== maximo)) && (
+                <div className="pres-marcas">
+                  {p.elegido && <span className="pastilla elegido">Elegido</span>}
+                  {lista.length >= 2 && p.precio === minimo && minimo !== maximo && <span className="pastilla">Más barato</span>}
+                </div>
+              )}
+              {p.notas && <p className="pres-notas">{p.notas}</p>}
+              <div className="pres-acciones">
+                <button className="boton-texto" onClick={() => elegirPresupuesto(p)}>{p.elegido ? 'Quitar elección' : 'Elegir'}</button>
+                {p.telefono && <a className="boton-texto" href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`}>Llamar</a>}
+                <button className="boton-texto" onClick={() => setForm({ id: p.id, proveedor: p.proveedor, precio: p.precio == null ? '' : String(p.precio).replace('.', ','), telefono: p.telefono ?? '', notas: p.notas ?? '' })}>Editar</button>
+                <button className="boton-texto peligro-texto" onClick={() => db.presupuestos.delete(p.id)}>Borrar</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {form ? (
+        <form className="tarjeta form-presupuesto" onSubmit={guardar} noValidate>
+          <div className="campos-fila">
+            <input id="pres-proveedor" placeholder="Proveedor o persona" value={form.proveedor} onChange={campo('proveedor')} autoFocus aria-label="Proveedor" />
+            <input id="pres-precio" inputMode="decimal" placeholder={`Precio (${moneda})`} value={form.precio} onChange={campo('precio')} aria-label="Precio" />
+          </div>
+          <input id="pres-telefono" type="tel" placeholder="Teléfono (opcional)" value={form.telefono} onChange={campo('telefono')} aria-label="Teléfono" />
+          <textarea id="pres-notas" rows={2} placeholder="Qué incluye, plazo, garantía…" value={form.notas} onChange={campo('notas')} aria-label="Notas del presupuesto" />
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="confirmar-botones">
+            <button type="button" className="boton" onClick={() => { setForm(null); setError('') }}>Cancelar</button>
+            <button className="boton primario">{form.id ? 'Guardar' : 'Añadir'}</button>
+          </div>
+        </form>
+      ) : (
+        <button className="boton" onClick={() => setForm({ ...PRESUPUESTO_VACIO })}><IconoMas2 /> Añadir presupuesto</button>
+      )}
+    </section>
   )
 }
 
@@ -654,3 +822,6 @@ const IconoCarro = () => <svg {...svg}><path d="M3 4h2l2.4 11h10.8L20 8H6.2" /><
 const IconoAjustes = () => <svg {...svg}><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
 const IconoCamara = () => <svg {...svg} width={18} height={18}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
 const IconoImagen = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="m4 17 5-5 4 4 3-3 4 4" /></svg>
+const IconoMas2 = () => <svg {...svg} width={18} height={18}><path d="M12 5v14M5 12h14" /></svg>
+const IconoCampana = () => <svg {...svg} width={15} height={15}><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></svg>
+const IconoCalendario = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
