@@ -289,6 +289,10 @@ async function enlazar(userId, mapas) {
 
 /* ---------- orchestration ---------- */
 
+// Two open windows of the app share the same local data: only one may sync at a time,
+// or both would give the same rows different uids and upload them twice.
+const conCandado = (f) => (navigator.locks ? navigator.locks.request('app-casa-sincro', f) : f())
+
 let enCurso = null
 let repetir = false
 
@@ -302,10 +306,12 @@ export function sincronizar() {
       fijar({ fase: 'sincronizando', error: null })
       try {
         const userId = estado.sesion.user.id
-        let mapas = await cargarMapas()
-        if (mapas.est.userId !== userId) mapas = await enlazar(userId, mapas)
-        await subir(userId, mapas)
-        await bajar(mapas)
+        await conCandado(async () => {
+          let mapas = await cargarMapas()
+          if (mapas.est.userId !== userId) mapas = await enlazar(userId, mapas)
+          await subir(userId, mapas)
+          await bajar(mapas)
+        })
         fijar({ fase: 'al-dia', ultima: Date.now() })
       } catch (err) {
         console.error('Sincronización', err)
