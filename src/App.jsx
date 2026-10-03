@@ -731,7 +731,7 @@ function Ajustes({ habitaciones }) {
       </section>
       <section className="bloque">
         <h2>Copia de seguridad</h2>
-        <p className="tenue">Las tareas, fotos y presupuestos se guardan solo en este móvil. Guarda una copia en Drive o mándatela por WhatsApp de vez en cuando.</p>
+        <p className="tenue">Además de la nube, puedes guardar una copia en un archivo y mandarla a Drive o WhatsApp.</p>
         {ultimaCopia && <p className="tenue pie">Última copia: {new Date(ultimaCopia).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</p>}
         <div className="botones-foto">
           <button className="boton primario" disabled={ocupado} onClick={hacerCopia}><IconoDescargar /> Guardar copia</button>
