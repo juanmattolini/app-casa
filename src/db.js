@@ -14,6 +14,11 @@ db.version(2).stores({
   presupuestos: '++id, tareaId',
 })
 
+// Cloud sync bookkeeping (see nube.js): which uid each local row has and what was last sent.
+db.version(3).stores({
+  sincro: 'clave, tabla, uid',
+})
+
 export const PRIORIDADES = [
   { valor: 'alta', etiqueta: 'Alta' },
   { valor: 'media', etiqueta: 'Media' },

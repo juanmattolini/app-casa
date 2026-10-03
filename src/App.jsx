@@ -4,6 +4,7 @@ import { db, PRIORIDADES, REPETICIONES, alternarHecha, borrarEjemplos, borrarTar
 import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
 import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
+import Nube from './Nube.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
 const GRUPOS = [
@@ -691,6 +692,7 @@ function Ajustes({ habitaciones }) {
   return (
     <main className="pantalla con-pestanas">
       <header className="cabecera-simple"><h1>Ajustes</h1></header>
+      <Nube />
       <section className="bloque">
         <h2>Habitaciones</h2>
         <ul className="habitaciones">
