@@ -1,6 +1,6 @@
 import Dexie from 'dexie'
 import { createClient } from '@supabase/supabase-js'
-import { borrarEjemplos, db } from './db.js'
+import { borrarEjemplos, db, unirHabitacionesRepetidas } from './db.js'
 import { NUBE_CLAVE, NUBE_URL } from './nube-config.js'
 
 // Cloud sync with Supabase. The device stays the source the app reads from (works offline);
@@ -76,13 +76,17 @@ async function cargarMapas() {
   const porClave = new Map()
   const porUid = new Map()
   let est = {}
+  const repetidos = []
   for (const m of todos) {
     if (m.clave === ESTADO) est = m
+    else if (porUid.has(claveDe(m.tabla, m.uid))) repetidos.push(m.clave)
     else {
       porClave.set(m.clave, m)
       porUid.set(claveDe(m.tabla, m.uid), m)
     }
   }
+  // Two local rows sharing one uid (left by an old bug): the second gets a new uid on upload.
+  if (repetidos.length) await db.sincro.bulkDelete(repetidos)
   const uidDe = (tabla, id) => porClave.get(claveDe(tabla, id))?.uid
   const idLocal = (tabla, uid) => porUid.get(claveDe(tabla, uid))?.id
   const poner = (m) => {
@@ -309,8 +313,9 @@ export function sincronizar() {
         await conCandado(async () => {
           let mapas = await cargarMapas()
           if (mapas.est.userId !== userId) mapas = await enlazar(userId, mapas)
+          await unirHabitacionesRepetidas()
           await subir(userId, mapas)
-          await bajar(mapas)
+          if (await bajar(mapas)) await unirHabitacionesRepetidas()
         })
         fijar({ fase: 'al-dia', ultima: Date.now() })
       } catch (err) {

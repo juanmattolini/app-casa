@@ -82,6 +82,20 @@ export async function inicializar() {
   })
 }
 
+// Rooms with the same name are one room: move their tasks to the first and drop the rest.
+export async function unirHabitacionesRepetidas() {
+  await db.transaction('rw', db.habitaciones, db.tareas, async () => {
+    const primera = new Map()
+    for (const h of await db.habitaciones.orderBy('id').toArray()) {
+      const clave = String(h.nombre ?? '').trim().toLowerCase()
+      const id = primera.get(clave)
+      if (id == null) { primera.set(clave, h.id); continue }
+      await db.tareas.where('habitacionId').equals(h.id).modify({ habitacionId: id })
+      await db.habitaciones.delete(h.id)
+    }
+  })
+}
+
 export async function guardarTarea(tarea, materiales, fotosNuevas, fotosBorradas) {
   return db.transaction('rw', db.tareas, db.materiales, db.fotos, async () => {
     const { id, ...datos } = tarea
