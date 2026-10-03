@@ -5,7 +5,6 @@ import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
 import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
 import Nube from './Nube.jsx'
-import Entrada, { useEntradaVisible } from './Entrada.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
 const GRUPOS = [
@@ -48,9 +47,6 @@ export default function App() {
   const habitaciones = useLiveQuery(() => db.habitaciones.orderBy('nombre').toArray(), [], [])
   const nombreHab = useMemo(() => Object.fromEntries(habitaciones.map((h) => [h.id, h.nombre])), [habitaciones])
   const pestaña = ['inicio', 'compras', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
-  const [verEntrada, seguirSinCuenta] = useEntradaVisible()
-
-  if (verEntrada) return <Entrada onSinCuenta={seguirSinCuenta} />
 
   return (
     <div className="app">
