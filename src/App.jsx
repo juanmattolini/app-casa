@@ -5,6 +5,7 @@ import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
 import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
 import Nube from './Nube.jsx'
+import Entrada, { useEntradaVisible } from './Entrada.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
 const GRUPOS = [
@@ -47,6 +48,9 @@ export default function App() {
   const habitaciones = useLiveQuery(() => db.habitaciones.orderBy('nombre').toArray(), [], [])
   const nombreHab = useMemo(() => Object.fromEntries(habitaciones.map((h) => [h.id, h.nombre])), [habitaciones])
   const pestaña = ['inicio', 'compras', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
+  const [verEntrada, seguirSinCuenta] = useEntradaVisible()
+
+  if (verEntrada) return <Entrada onSinCuenta={seguirSinCuenta} />
 
   return (
     <div className="app">
@@ -121,14 +125,18 @@ function Inicio({ nav, nombreHab, habitaciones }) {
   return (
     <main className="pantalla con-pestanas">
       <header className="cabecera-inicio">
-        <div>
+        <div className="cabecera-textos">
           <p className="sobretitulo">{fechaLarga()}</p>
-          <h1>Casa</h1>
+          <h1>{saludo()}</h1>
+          <p className="resumen">
+            {pendientes === 0 ? 'Todo al día en casa' : `${pendientes} ${pendientes === 1 ? 'tarea pendiente' : 'tareas pendientes'}`}
+          </p>
         </div>
-        <p className="resumen">
-          <strong>{pendientes}</strong> {pendientes === 1 ? 'pendiente' : 'pendientes'}
-          {grupos.vencidas.length > 0 && <span className="pastilla roja">{grupos.vencidas.length} vencidas</span>}
-        </p>
+        <div className="cifras">
+          <div className={`cifra ${grupos.vencidas.length ? 'alerta' : ''}`}><strong>{grupos.vencidas.length}</strong><span>Vencidas</span></div>
+          <div className="cifra"><strong>{grupos.hoy.length}</strong><span>Hoy</span></div>
+          <div className="cifra"><strong>{grupos.proximas.length + grupos.sinFecha.length}</strong><span>Después</span></div>
+        </div>
       </header>
 
       <div className="filtros">
@@ -136,15 +144,19 @@ function Inicio({ nav, nombreHab, habitaciones }) {
           id="busqueda" type="search" placeholder="Buscar tarea" value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar tarea"
         />
-        <div className="filtros-fila">
-          <select id="filtro-hab" value={habFiltro} onChange={(e) => setHabFiltro(e.target.value)} aria-label="Habitación">
-            <option value="">Todas las habitaciones</option>
-            {habitaciones.map((h) => <option key={h.id} value={String(h.id)}>{h.nombre}</option>)}
-          </select>
-          <select id="filtro-prio" value={prioFiltro} onChange={(e) => setPrioFiltro(e.target.value)} aria-label="Prioridad">
-            <option value="">Cualquier prioridad</option>
-            {PRIORIDADES.map((p) => <option key={p.valor} value={p.valor}>{p.etiqueta}</option>)}
-          </select>
+        <div className="chips" role="group" aria-label="Filtrar por habitación">
+          <button className={`chip ${habFiltro === '' ? 'activo' : ''}`} aria-pressed={habFiltro === ''} onClick={() => setHabFiltro('')}>Todas</button>
+          {habitaciones.map((h) => (
+            <button key={h.id} className={`chip ${habFiltro === String(h.id) ? 'activo' : ''}`} aria-pressed={habFiltro === String(h.id)}
+              onClick={() => setHabFiltro(habFiltro === String(h.id) ? '' : String(h.id))}>{h.nombre}</button>
+          ))}
+          <span className="chips-separador" aria-hidden="true" />
+          {PRIORIDADES.map((p) => (
+            <button key={p.valor} className={`chip prio-${p.valor} ${prioFiltro === p.valor ? 'activo' : ''}`} aria-pressed={prioFiltro === p.valor}
+              onClick={() => setPrioFiltro(prioFiltro === p.valor ? '' : p.valor)}>
+              <span className="punto" aria-hidden="true" />{p.etiqueta}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -205,6 +217,11 @@ function Inicio({ nav, nombreHab, habitaciones }) {
   )
 }
 
+function saludo() {
+  const h = new Date().getHours()
+  return h < 6 ? 'Buenas noches' : h < 13 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches'
+}
+
 function fechaLarga() {
   const texto = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
   return texto.charAt(0).toUpperCase() + texto.slice(1)
@@ -227,7 +244,7 @@ function FilaTarea({ tarea, habitacion, miniatura, materialesPendientes, onAbrir
               {grupo === 'vencidas' ? `Hace ${diasDeRetraso(tarea.fechaLimite)} d` : fechaCorta(tarea.fechaLimite)}
             </span>
           )}
-          {habitacion && <span>{habitacion}</span>}
+          {habitacion && <span className="etiqueta-hab">{habitacion}</span>}
           {tarea.repetir && !hecha && <span className="con-icono"><IconoRepetir /> {etiquetaRepetir(tarea.repetir)}</span>}
           {tarea.recordatorio && !hecha && <span className="con-icono"><IconoCampana /> {recordatorioTexto(tarea.recordatorio)}</span>}
           {materialesPendientes > 0 && <span>{materialesPendientes} por comprar</span>}
