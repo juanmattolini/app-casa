@@ -19,6 +19,20 @@ db.version(3).stores({
   sincro: 'clave, tabla, uid',
 })
 
+// Appliances (with manual, invoice and warranty) and the people who do repairs.
+db.version(4).stores({
+  tareas: '++id, estado, habitacionId, prioridad, fechaLimite, creada, aparatoId, contactoId',
+  aparatos: '++id, habitacionId, nombre',
+  contactos: '++id, nombre',
+})
+
+export const QUIEN = [
+  { valor: 'yo', etiqueta: 'Lo hago yo' },
+  { valor: 'pro', etiqueta: 'Profesional' },
+]
+
+export const OFICIOS = ['Plomero', 'Electricista', 'Gasista', 'Pintor', 'Albañil', 'Carpintero', 'Cerrajero', 'Técnico de aire', 'Técnico de electrodomésticos', 'Jardinero']
+
 export const PRIORIDADES = [
   { valor: 'alta', etiqueta: 'Alta' },
   { valor: 'media', etiqueta: 'Media' },
@@ -187,5 +201,20 @@ export async function elegirPresupuesto(p) {
   await db.transaction('rw', db.presupuestos, async () => {
     await db.presupuestos.where('tareaId').equals(p.tareaId).modify({ elegido: false })
     if (!p.elegido) await db.presupuestos.update(p.id, { elegido: true })
+  })
+}
+
+// Deleting an appliance or a contact keeps its tasks, just unlinked.
+export async function borrarAparato(id) {
+  await db.transaction('rw', db.aparatos, db.tareas, async () => {
+    await db.tareas.where('aparatoId').equals(id).modify({ aparatoId: null })
+    await db.aparatos.delete(id)
+  })
+}
+
+export async function borrarContacto(id) {
+  await db.transaction('rw', db.contactos, db.tareas, async () => {
+    await db.tareas.where('contactoId').equals(id).modify({ contactoId: null })
+    await db.contactos.delete(id)
   })
 }

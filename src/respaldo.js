@@ -1,7 +1,7 @@
 import { db } from './db.js'
 
 // Backup = one JSON file with every table; photos and attachments go inside as data URLs.
-const TABLAS = ['tareas', 'materiales', 'fotos', 'habitaciones', 'presupuestos', 'meta']
+const TABLAS = ['tareas', 'materiales', 'fotos', 'habitaciones', 'presupuestos', 'aparatos', 'contactos', 'meta']
 
 const aDataUrl = (blob) => new Promise((res, rej) => {
   const r = new FileReader()

@@ -14,13 +14,15 @@ export const nube = NUBE_URL
   : null
 
 // Upload order matters: parents first so references resolve on the other side.
-const TABLAS = ['habitaciones', 'tareas', 'materiales', 'fotos', 'presupuestos', 'meta']
+const TABLAS = ['habitaciones', 'aparatos', 'contactos', 'tareas', 'materiales', 'fotos', 'presupuestos', 'meta']
 const REFERENCIAS = {
-  tareas: { habitacionId: 'habitaciones', siguienteId: 'tareas' },
+  aparatos: { habitacionId: 'habitaciones' },
+  tareas: { habitacionId: 'habitaciones', siguienteId: 'tareas', aparatoId: 'aparatos', contactoId: 'contactos' },
   materiales: { tareaId: 'tareas' },
   fotos: { tareaId: 'tareas' },
   presupuestos: { tareaId: 'tareas' },
 }
+const BORRABLES = ['tareas', 'materiales', 'fotos', 'presupuestos', 'aparatos', 'contactos', 'habitaciones']
 const META_SINCRONIZADA = ['moneda']
 const BUCKET = 'archivos'
 const ESTADO = '_estado'
@@ -268,8 +270,8 @@ async function enlazar(userId, mapas) {
     await borrarEjemplos()
     if ((await db.tareas.count()) === 0) {
       // Fresh device: drop the sample data and take what is in the cloud.
-      await db.transaction('rw', ['tareas', 'materiales', 'fotos', 'presupuestos', 'habitaciones'].map((t) => db[t]), async () => {
-        for (const t of ['tareas', 'materiales', 'fotos', 'presupuestos', 'habitaciones']) await db[t].clear()
+      await db.transaction('rw', BORRABLES.map((t) => db[t]), async () => {
+        for (const t of BORRABLES) await db[t].clear()
       })
       await db.meta.bulkDelete(META_SINCRONIZADA)
     } else {

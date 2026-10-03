@@ -406,3 +406,26 @@ main.acceso .acceso-tarjeta { border-radius: 26px; padding: 22px 20px; }
 .detalle > .bloque .presupuestos li { background: var(--papel-2); box-shadow: none; }
 .detalle > .acciones { margin-top: 6px; }
 .detalle > .bloque + .bloque { margin-top: 0; }
+
+/* ---------- Casa: aparatos y contactos ---------- */
+.segmentado.dos { grid-template-columns: 1fr 1fr; }
+.casa-vistas { margin-bottom: 18px; }
+.separado { margin-top: 8px; }
+.miniatura.sin-foto {
+  background: color-mix(in srgb, var(--pino-2) 12%, transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%232f7d63' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='3' width='14' height='18' rx='2'/%3E%3Cpath d='M5 9h14M9 6h.01M9 13v3'/%3E%3C/svg%3E") no-repeat center;
+}
+.fila-meta > .garantia.vigente, .garantia.vigente { color: var(--pino); }
+.fila-meta > .garantia.pronto, .garantia.pronto { color: #9a6400; background: color-mix(in srgb, var(--ambar) 18%, var(--papel)); }
+.fila-meta > .garantia.vencida, .garantia.vencida { color: var(--rojo); }
+.fila-contacto .fila-cuerpo, .contacto-tarea .fila-cuerpo { padding-block: 8px; }
+.llamar {
+  width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%;
+  color: var(--pino); background: color-mix(in srgb, var(--pino-2) 14%, transparent);
+}
+.contacto-tarea { display: flex; align-items: center; gap: 12px; }
+.foto-aparato { width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radio); overflow: hidden; background: var(--linea); }
+.foto-aparato img { width: 100%; height: 100%; object-fit: cover; }
+.documentos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.documentos > div { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.oficio { margin-top: 4px; font-size: 1rem; }
+.detalle .botones-foto { margin-top: 0; }

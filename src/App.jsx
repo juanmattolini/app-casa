@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, PRIORIDADES, REPETICIONES, alternarHecha, borrarEjemplos, borrarTarea, elegirPresupuesto, guardarTarea, hoyISO } from './db.js'
+import { db, PRIORIDADES, QUIEN, REPETICIONES, alternarHecha, borrarEjemplos, borrarTarea, elegirPresupuesto, guardarTarea, hoyISO } from './db.js'
 import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
 import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
 import Nube from './Nube.jsx'
+import { Casa, DetalleAparato, DetalleContacto, FormAparato, FormContacto, mismoNombre } from './Casa.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
 const GRUPOS = [
@@ -46,13 +47,18 @@ export default function App() {
   const { actual } = nav
   const habitaciones = useLiveQuery(() => db.habitaciones.orderBy('nombre').toArray(), [], [])
   const nombreHab = useMemo(() => Object.fromEntries(habitaciones.map((h) => [h.id, h.nombre])), [habitaciones])
-  const pestaña = ['inicio', 'compras', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
+  const pestaña = ['inicio', 'casa', 'compras', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
 
   return (
     <div className="app">
       {actual.pantalla === 'inicio' && <Inicio nav={nav} nombreHab={nombreHab} habitaciones={habitaciones} />}
       {actual.pantalla === 'detalle' && <Detalle id={actual.id} nav={nav} nombreHab={nombreHab} />}
-      {actual.pantalla === 'formulario' && <Formulario id={actual.id} nav={nav} habitaciones={habitaciones} />}
+      {actual.pantalla === 'formulario' && <Formulario id={actual.id} preset={actual} nav={nav} habitaciones={habitaciones} />}
+      {actual.pantalla === 'casa' && <Casa nav={nav} nombreHab={nombreHab} />}
+      {actual.pantalla === 'aparato' && <DetalleAparato id={actual.id} nav={nav} nombreHab={nombreHab} />}
+      {actual.pantalla === 'aparatoForm' && <FormAparato id={actual.id} nav={nav} habitaciones={habitaciones} />}
+      {actual.pantalla === 'contacto' && <DetalleContacto id={actual.id} nav={nav} />}
+      {actual.pantalla === 'contactoForm' && <FormContacto id={actual.id} nav={nav} />}
       {actual.pantalla === 'compras' && <Compras nav={nav} />}
       {actual.pantalla === 'gastos' && <Gastos nav={nav} nombreHab={nombreHab} />}
       {actual.pantalla === 'ajustes' && <Ajustes habitaciones={habitaciones} />}
@@ -60,6 +66,7 @@ export default function App() {
         <nav className="pestanas" aria-label="Secciones">
           {[
             ['inicio', 'Tareas', IconoLista],
+            ['casa', 'Casa', IconoCasa],
             ['compras', 'Compras', IconoCarro],
             ['gastos', 'Gastos', IconoGastos],
             ['ajustes', 'Ajustes', IconoAjustes],
@@ -243,6 +250,7 @@ function FilaTarea({ tarea, habitacion, miniatura, materialesPendientes, onAbrir
           {habitacion && <span className="etiqueta-hab">{habitacion}</span>}
           {tarea.repetir && !hecha && <span className="con-icono"><IconoRepetir /> {etiquetaRepetir(tarea.repetir)}</span>}
           {tarea.recordatorio && !hecha && <span className="con-icono"><IconoCampana /> {recordatorioTexto(tarea.recordatorio)}</span>}
+          {tarea.quien === 'pro' && !hecha && <span>Profesional</span>}
           {materialesPendientes > 0 && <span>{materialesPendientes} por comprar</span>}
           {tarea.ejemplo && <span className="etiqueta-ejemplo">ejemplo</span>}
         </span>
@@ -258,6 +266,9 @@ function Detalle({ id, nav, nombreHab }) {
   const tarea = useLiveQuery(() => db.tareas.get(id), [id], null)
   const materiales = useLiveQuery(() => db.materiales.where('tareaId').equals(id).toArray(), [id], [])
   const fotos = useLiveQuery(() => db.fotos.where('tareaId').equals(id).toArray(), [id], [])
+  const aparato = useLiveQuery(async () => (tarea?.aparatoId ? db.aparatos.get(tarea.aparatoId) : null), [tarea?.aparatoId], null)
+  const contacto = useLiveQuery(async () => (tarea?.contactoId ? db.contactos.get(tarea.contactoId) : null), [tarea?.contactoId], null)
+  const moneda = useMoneda()
   const [visor, setVisor] = useState(null)
   const [confirmando, setConfirmando] = useState(false)
 
@@ -277,10 +288,27 @@ function Detalle({ id, nav, nombreHab }) {
           <div><dt>Prioridad</dt><dd><span className={`pastilla prio-${tarea.prioridad}`}>{prio?.etiqueta}</span></dd></div>
           <div><dt>Fecha límite</dt><dd className={grupoDe(tarea) === 'vencidas' ? 'tarde' : ''}>{tarea.fechaLimite ? fechaCorta(tarea.fechaLimite) : 'Sin fecha'}</dd></div>
           <div><dt>Estado</dt><dd>{hecha ? 'Hecha' : 'Pendiente'}</dd></div>
+          {aparato && <div className="ancho"><dt>Aparato</dt><dd><button className="enlace" onClick={() => nav.ir({ pantalla: 'aparato', id: aparato.id })}>{aparato.nombre}</button></dd></div>}
+          {tarea.quien && <div><dt>Quién lo hace</dt><dd>{QUIEN.find((q) => q.valor === tarea.quien)?.etiqueta}</dd></div>}
+          {tarea.tiempo && <div><dt>Tiempo estimado</dt><dd>{tarea.tiempo}</dd></div>}
+          {tarea.costoEstimado != null && <div><dt>Costo estimado</dt><dd>{dinero(tarea.costoEstimado, moneda)}</dd></div>}
           {tarea.repetir && <div className="ancho"><dt>Se repite</dt><dd>{etiquetaRepetir(tarea.repetir)}{hecha && tarea.siguienteId ? ' · ya se creó la siguiente' : ''}</dd></div>}
         </dl>
 
         {tarea.notas && <p className="notas">{tarea.notas}</p>}
+
+        {contacto && (
+          <section className="bloque">
+            <h2>Profesional</h2>
+            <div className="contacto-tarea">
+              <button className="fila-cuerpo" onClick={() => nav.ir({ pantalla: 'contacto', id: contacto.id })}>
+                <span className="fila-titulo">{contacto.nombre}</span>
+                {contacto.oficio && <span className="tenue">{contacto.oficio}</span>}
+              </button>
+              {contacto.telefono && <a className="llamar" href={`tel:${contacto.telefono.replace(/[^\d+]/g, '')}`} aria-label={`Llamar a ${contacto.nombre}`}><IconoTelefono /></a>}
+            </div>
+          </section>
+        )}
 
         {!hecha && <BloqueRecordatorio tarea={tarea} materiales={materiales} onEditar={() => nav.ir({ pantalla: 'formulario', id })} />}
 
@@ -301,7 +329,7 @@ function Detalle({ id, nav, nombreHab }) {
           )}
         </section>
 
-        <BloquePresupuestos tareaId={id} />
+        <BloquePresupuestos tareaId={id} contactoPreferido={contacto} />
 
         <section className="bloque">
           <h2>Fotos</h2>
@@ -346,7 +374,7 @@ function Miniatura({ blob, onClick, children }) {
   )
 }
 
-function Visor({ blob, onCerrar }) {
+export function Visor({ blob, onCerrar }) {
   const url = useBlobUrl(blob)
   useEffect(() => {
     const tecla = (e) => e.key === 'Escape' && onCerrar()
@@ -365,9 +393,14 @@ function Visor({ blob, onCerrar }) {
 
 const UNIDADES = ['ud', 'L', 'kg', 'm', 'm²', 'rollo', 'caja', 'cartucho', 'bolsa']
 
-function Formulario({ id, nav, habitaciones }) {
+function Formulario({ id, preset, nav, habitaciones }) {
   const [cargado, setCargado] = useState(!id)
-  const [t, setT] = useState({ titulo: '', notas: '', habitacionId: '', prioridad: 'media', fechaLimite: '', recFecha: '', recHora: '', repetir: '' })
+  const [t, setT] = useState({
+    titulo: '', notas: '', habitacionId: preset?.habitacionId ?? '', prioridad: 'media', fechaLimite: '', recFecha: '', recHora: '', repetir: '',
+    aparatoId: preset?.aparatoId ?? '', quien: '', contactoId: '', tiempo: '', costo: '',
+  })
+  const aparatos = useLiveQuery(() => db.aparatos.orderBy('nombre').toArray(), [], [])
+  const contactos = useLiveQuery(() => db.contactos.orderBy('nombre').toArray(), [], [])
   const [materiales, setMateriales] = useState([])
   const [fotos, setFotos] = useState([]) // existing {id, miniatura} and new {clave, imagen, miniatura}
   const [borradas, setBorradas] = useState([])
@@ -385,6 +418,8 @@ function Formulario({ id, nav, habitaciones }) {
         ...tarea, habitacionId: tarea.habitacionId ?? '', fechaLimite: tarea.fechaLimite ?? '',
         recFecha: tarea.recordatorio?.fecha ?? '', recHora: tarea.recordatorio?.hora ?? '',
         repetir: tarea.repetir ? `${tarea.repetir.cada}-${tarea.repetir.unidad}` : '',
+        aparatoId: tarea.aparatoId ?? '', quien: tarea.quien ?? '', contactoId: tarea.contactoId ?? '', tiempo: tarea.tiempo ?? '',
+        costo: tarea.costoEstimado == null ? '' : String(tarea.costoEstimado).replace('.', ','),
       })
       setMateriales(await db.materiales.where('tareaId').equals(id).toArray())
       setFotos(await db.fotos.where('tareaId').equals(id).toArray())
@@ -426,6 +461,8 @@ function Formulario({ id, nav, habitaciones }) {
   const guardar = async (e) => {
     e.preventDefault()
     if (!t.titulo.trim()) return setError('Escribe un título para la tarea.')
+    const costoEstimado = aNumero(t.costo)
+    if (t.costo.trim() && costoEstimado == null) return setError('El costo estimado no es un número válido.')
     setGuardando(true)
     try {
       const pendienteMat = nuevoMat.nombre.trim()
@@ -442,6 +479,11 @@ function Formulario({ id, nav, habitaciones }) {
         habitacionId: t.habitacionId === '' ? null : Number(t.habitacionId),
         prioridad: t.prioridad,
         fechaLimite: t.fechaLimite || null,
+        aparatoId: t.aparatoId === '' ? null : Number(t.aparatoId),
+        quien: t.quien || null,
+        contactoId: t.quien === 'pro' && t.contactoId !== '' ? Number(t.contactoId) : null,
+        tiempo: t.tiempo.trim(),
+        costoEstimado,
         ejemplo: false,
       }
       const nuevas = fotos.filter((f) => !f.id).map(({ imagen, miniatura, fecha }) => ({ imagen, miniatura, fecha }))
@@ -477,6 +519,46 @@ function Formulario({ id, nav, habitaciones }) {
           <label className="campo">
             <span>Fecha límite</span>
             <input id="fecha" type="date" value={t.fechaLimite} onChange={cambiar('fechaLimite')} />
+          </label>
+        </div>
+
+        {aparatos.length > 0 && (
+          <label className="campo">
+            <span>Aparato</span>
+            <select id="aparato" value={String(t.aparatoId)} onChange={(e) => {
+              const ap = aparatos.find((a) => String(a.id) === e.target.value)
+              setT((x) => ({ ...x, aparatoId: e.target.value, habitacionId: x.habitacionId === '' && ap?.habitacionId != null ? ap.habitacionId : x.habitacionId }))
+            }}>
+              <option value="">Ninguno</option>
+              {aparatos.map((a) => <option key={a.id} value={String(a.id)}>{a.nombre}</option>)}
+            </select>
+          </label>
+        )}
+
+        <fieldset className="campo">
+          <legend>¿Quién lo hace?</legend>
+          <div className="segmentado dos">
+            {QUIEN.map((q) => (
+              <button type="button" key={q.valor} className={`seg ${t.quien === q.valor ? 'activo' : ''}`} aria-pressed={t.quien === q.valor}
+                onClick={() => setT((x) => ({ ...x, quien: x.quien === q.valor ? '' : q.valor }))}>{q.etiqueta}</button>
+            ))}
+          </div>
+          {t.quien === 'pro' && (contactos.length > 0 ? (
+            <select id="contacto" value={String(t.contactoId)} onChange={cambiar('contactoId')} aria-label="Profesional" className="separado">
+              <option value="">Sin elegir todavía</option>
+              {contactos.map((c) => <option key={c.id} value={String(c.id)}>{c.nombre}{c.oficio ? ` · ${c.oficio}` : ''}</option>)}
+            </select>
+          ) : <p className="tenue pie">Guarda a tus profesionales en la pestaña Casa para elegirlos aquí.</p>)}
+        </fieldset>
+
+        <div className="campos-fila">
+          <label className="campo">
+            <span>Tiempo estimado</span>
+            <input id="tiempo" value={t.tiempo} onChange={cambiar('tiempo')} placeholder="Ej.: 2 h" />
+          </label>
+          <label className="campo">
+            <span>Costo estimado</span>
+            <input id="costo" inputMode="decimal" value={t.costo} onChange={cambiar('costo')} placeholder="Opcional" />
           </label>
         </div>
 
@@ -648,7 +730,7 @@ function Compras({ nav }) {
 function Ajustes({ habitaciones }) {
   const [nueva, setNueva] = useState('')
   const [editando, setEditando] = useState(null)
-  const enUso = useLiveQuery(async () => new Set((await db.tareas.toArray()).map((t) => t.habitacionId)), [], new Set())
+  const enUso = useLiveQuery(async () => new Set([...(await db.tareas.toArray()), ...(await db.aparatos.toArray())].map((x) => x.habitacionId)), [], new Set())
   const monedaGuardada = useMoneda()
   const ultimaCopia = useLiveQuery(async () => (await db.meta.get('ultimaCopia'))?.valor, [], null)
   const [copiaPendiente, setCopiaPendiente] = useState(null)
@@ -732,7 +814,7 @@ function Ajustes({ habitaciones }) {
           <input id="hab-nueva" placeholder="Nueva habitación" value={nueva} onChange={(e) => setNueva(e.target.value)} aria-label="Nueva habitación" />
           <button className="boton pequeño">Añadir</button>
         </form>
-        <p className="tenue pie">Solo puedes quitar habitaciones que no usa ninguna tarea.</p>
+        <p className="tenue pie">Solo puedes quitar habitaciones que no usa ninguna tarea ni aparato.</p>
       </section>
       <section className="bloque">
         <h2>Moneda</h2>
@@ -799,15 +881,16 @@ function BloqueRecordatorio({ tarea, materiales, onEditar }) {
 
 /* ---------- Presupuestos ---------- */
 
-function useMoneda() {
+export function useMoneda() {
   return useLiveQuery(async () => (await db.meta.get('moneda'))?.valor ?? '$', [], '$')
 }
 
 const PRESUPUESTO_VACIO = { proveedor: '', precio: '', telefono: '', notas: '', adjunto: null }
 const MAX_PDF = 15 * 1024 * 1024
 
-function BloquePresupuestos({ tareaId }) {
+function BloquePresupuestos({ tareaId, contactoPreferido }) {
   const lista = useLiveQuery(() => db.presupuestos.where('tareaId').equals(tareaId).toArray(), [tareaId], [])
+  const contactos = useLiveQuery(() => db.contactos.orderBy('nombre').toArray(), [], [])
   const moneda = useMoneda()
   const [form, setForm] = useState(null) // null = closed; {id?} = adding or editing
   const [error, setError] = useState('')
@@ -851,6 +934,12 @@ function BloquePresupuestos({ tareaId }) {
     setError('')
   }
   const campo = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  // Typing a saved contact's name fills in their phone.
+  const cambiarProveedor = (e) => {
+    const proveedor = e.target.value
+    const c = contactos.find((x) => mismoNombre(x.nombre, proveedor))
+    setForm((f) => ({ ...f, proveedor, telefono: c?.telefono && !f.telefono ? c.telefono : f.telefono }))
+  }
 
   return (
     <section className="bloque">
@@ -896,7 +985,8 @@ function BloquePresupuestos({ tareaId }) {
       {form ? (
         <form className="tarjeta form-presupuesto" onSubmit={guardar} noValidate>
           <div className="campos-fila">
-            <input id="pres-proveedor" placeholder="Proveedor o persona" value={form.proveedor} onChange={campo('proveedor')} autoFocus aria-label="Proveedor" />
+            <input id="pres-proveedor" list="pres-contactos" placeholder="Proveedor o persona" value={form.proveedor} onChange={cambiarProveedor} autoFocus aria-label="Proveedor" />
+            <datalist id="pres-contactos">{contactos.map((c) => <option key={c.id} value={c.nombre} />)}</datalist>
             <input id="pres-precio" inputMode="decimal" placeholder={`Precio (${moneda})`} value={form.precio} onChange={campo('precio')} aria-label="Precio" />
           </div>
           <input id="pres-telefono" type="tel" placeholder="Teléfono (opcional)" value={form.telefono} onChange={campo('telefono')} aria-label="Teléfono" />
@@ -925,14 +1015,14 @@ function BloquePresupuestos({ tareaId }) {
           </div>
         </form>
       ) : (
-        <button className="boton" onClick={() => setForm({ ...PRESUPUESTO_VACIO })}><IconoMas2 /> Añadir presupuesto</button>
+        <button className="boton" onClick={() => setForm({ ...PRESUPUESTO_VACIO, ...(contactoPreferido && !lista.some((p) => mismoNombre(p.proveedor, contactoPreferido.nombre)) ? { proveedor: contactoPreferido.nombre, telefono: contactoPreferido.telefono ?? '' } : {}) })}><IconoMas2 /> Añadir presupuesto</button>
       )}
       {visor && <Visor blob={visor} onCerrar={() => setVisor(null)} />}
     </section>
   )
 }
 
-function Adjunto({ blob, nombre, onVerFoto }) {
+export function Adjunto({ blob, nombre, onVerFoto }) {
   const url = useBlobUrl(blob)
   if (!url) return null
   if (blob.type === 'application/pdf')
@@ -1053,7 +1143,7 @@ function etiquetaRepetir(r) {
 
 /* ---------- Piezas comunes ---------- */
 
-function BarraSuperior({ titulo, onVolver, accion }) {
+export function BarraSuperior({ titulo, onVolver, accion }) {
   return (
     <div className="barra-superior">
       <button className="volver" onClick={onVolver} aria-label="Volver"><IconoAtras /></button>
@@ -1064,15 +1154,15 @@ function BarraSuperior({ titulo, onVolver, accion }) {
 }
 
 const svg = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }
-const IconoMas = () => <svg {...svg} width={28} height={28}><path d="M12 5v14M5 12h14" /></svg>
+export const IconoMas = () => <svg {...svg} width={28} height={28}><path d="M12 5v14M5 12h14" /></svg>
 const IconoCheck = () => <svg {...svg} width={16} height={16} strokeWidth={3}><path d="m5 12 5 5 9-10" /></svg>
 const IconoX = () => <svg {...svg} width={16} height={16}><path d="M6 6l12 12M18 6 6 18" /></svg>
 const IconoAtras = () => <svg {...svg}><path d="M15 5l-7 7 7 7" /></svg>
 const IconoLista = () => <svg {...svg}><path d="M9 6h11M9 12h11M9 18h11" /><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2" /></svg>
 const IconoCarro = () => <svg {...svg}><path d="M3 4h2l2.4 11h10.8L20 8H6.2" /><circle cx="9" cy="19.5" r="1.3" /><circle cx="17" cy="19.5" r="1.3" /></svg>
 const IconoAjustes = () => <svg {...svg}><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
-const IconoCamara = () => <svg {...svg} width={18} height={18}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
-const IconoImagen = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="m4 17 5-5 4 4 3-3 4 4" /></svg>
+export const IconoCamara = () => <svg {...svg} width={18} height={18}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+export const IconoImagen = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="m4 17 5-5 4 4 3-3 4 4" /></svg>
 const IconoMas2 = () => <svg {...svg} width={18} height={18}><path d="M12 5v14M5 12h14" /></svg>
 const IconoCampana = () => <svg {...svg} width={15} height={15}><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></svg>
 const IconoCalendario = () => <svg {...svg} width={18} height={18}><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
@@ -1080,4 +1170,6 @@ const IconoGastos = () => <svg {...svg}><rect x="3" y="6" width="18" height="13"
 const IconoRepetir = () => <svg {...svg} width={14} height={14}><path d="M4 11V9a3 3 0 0 1 3-3h12l-3-3M20 13v2a3 3 0 0 1-3 3H5l3 3" /></svg>
 const IconoCompartir = () => <svg {...svg} width={18} height={18}><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6" /></svg>
 const IconoDescargar = () => <svg {...svg} width={18} height={18}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
-const IconoClip = () => <svg {...svg} width={18} height={18}><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4L14.5 7" /></svg>
+export const IconoClip = () => <svg {...svg} width={18} height={18}><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4L14.5 7" /></svg>
+export const IconoTelefono = () => <svg {...svg} width={18} height={18}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" /></svg>
+const IconoCasa = () => <svg {...svg}><path d="M3.5 11 12 4l8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M10 20v-5h4v5" /></svg>
