@@ -362,6 +362,17 @@ export async function entrar(email) {
   if (error) throw error
 }
 
+export async function entrarConClave(email, clave) {
+  const { error } = await nube.auth.signInWithPassword({ email, password: clave })
+  if (error) throw error
+}
+
+// Lets a signed-in user also log in with a password (the emailed link keeps working as recovery).
+export async function ponerClave(clave) {
+  const { error } = await nube.auth.updateUser({ password: clave })
+  if (error) throw error
+}
+
 export async function salir() {
   await nube.auth.signOut()
 }

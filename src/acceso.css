@@ -1,0 +1,23 @@
+/* Sign-in screen. Only uses the design tokens from estilos.css so it follows the app's theme. */
+.acceso { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 28px 20px calc(28px + env(safe-area-inset-bottom)); background: var(--suelo); color: var(--tinta); font-family: var(--f-texto); }
+.acceso-marca { text-align: center; display: grid; gap: 6px; justify-items: center; }
+.acceso-marca img { border-radius: 20px; box-shadow: var(--sombra-suave); }
+.acceso-marca h1 { margin: 6px 0 0; font-family: var(--f-titulo); font-size: 2.4rem; letter-spacing: -0.02em; }
+.acceso-marca p { margin: 0; color: var(--tinta-2); }
+.acceso-tarjeta { width: min(100%, 400px); display: grid; gap: 14px; padding: 18px; border-radius: var(--radio); background: var(--papel); box-shadow: var(--sombra-suave); border: 1px solid var(--linea); }
+.acceso-tarjeta form { display: grid; gap: 8px; }
+.acceso-tarjeta label { font-size: 0.85rem; font-weight: 600; color: var(--tinta-2); margin-top: 4px; }
+.acceso-tarjeta input { width: 100%; padding: 14px; font: inherit; font-size: 1rem; color: var(--tinta); background: var(--papel-2); border: 1px solid var(--linea); border-radius: var(--radio-campo); }
+.acceso-tarjeta input:focus-visible { outline: 2px solid var(--pino); outline-offset: 1px; }
+.acceso-modos { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: var(--radio-campo); background: var(--papel-2); border: 1px solid var(--linea); }
+.acceso-modos button { padding: 10px; font: inherit; font-weight: 600; color: var(--tinta-2); background: transparent; border: 0; border-radius: 10px; cursor: pointer; }
+.acceso-modos button.activa { background: var(--papel); color: var(--pino); box-shadow: var(--sombra-suave); }
+.acceso-clave { display: flex; align-items: center; gap: 8px; }
+.acceso-entrar { width: 100%; margin-top: 8px; justify-content: center; }
+.acceso-enviado { display: grid; gap: 8px; text-align: center; }
+.acceso-enviado h2 { margin: 0; font-family: var(--f-titulo); }
+.acceso-enviado p { margin: 0; }
+.acceso-ayuda, .acceso-pie { text-align: center; margin: 0; }
+.acceso-omitir { margin-top: 4px; }
+.clave-form { display: grid; gap: 6px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--linea); }
+.clave-form h3 { margin: 0; font-size: 1rem; }
