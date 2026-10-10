@@ -69,7 +69,8 @@ async function obtenerCupon(oferta, sesion) {
   return { codigo, registrado: false }
 }
 
-export default function Ofertas({ materiales }) {
+// Under Compras: the few offers that best match the list. In the Ofertas tab: all of them (max = Infinity).
+export default function Ofertas({ materiales, max = MAX_VISIBLES, titulo = 'Dónde comprar', vacio = null }) {
   const todas = useOfertas()
   const [abierta, setAbierta] = useState(null)
   const textos = useMemo(() => materiales.map(normal), [materiales])
@@ -80,14 +81,14 @@ export default function Ofertas({ materiales }) {
       .filter((o) => !o.vigente_hasta || o.vigente_hasta >= hoy)
       .map((o) => ({ oferta: o, coincide: coincidencias(o, textos) }))
       .sort((a, b) => b.coincide.length - a.coincide.length)
-      .slice(0, MAX_VISIBLES)
-  }, [todas, textos])
+      .slice(0, max)
+  }, [todas, textos, max])
 
-  if (lista.length === 0) return null
+  if (lista.length === 0) return vacio
 
   return (
     <section className="bloque ofertas" aria-label="Ofertas de comercios auspiciantes">
-      <h2>Dónde comprar <span className="aus">Auspiciado</span></h2>
+      <h2>{titulo} <span className="aus">Auspiciado</span></h2>
       <ul className="lista-ofertas">
         {lista.map(({ oferta, coincide }) => (
           <li key={oferta.id}>

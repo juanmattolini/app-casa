@@ -7,6 +7,7 @@ import { prepararFoto } from './imagenes.js'
 import Nube, { Avatar, useUsuario } from './Nube.jsx'
 import Ofertas from './Ofertas.jsx'
 import { IconoCategoria } from './Iconos.jsx'
+import { PantallaOfertas } from './Cercanos.jsx'
 import { alternarTema, temaEfectivo, useTema } from './tema.js'
 import { Casa, DetalleAparato, DetalleContacto, FormAparato, FormContacto, mismoNombre } from './Casa.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
@@ -50,7 +51,7 @@ export default function App() {
   const { actual } = nav
   const habitaciones = useLiveQuery(() => db.habitaciones.orderBy('nombre').toArray(), [], [])
   const nombreHab = useMemo(() => Object.fromEntries(habitaciones.map((h) => [h.id, h.nombre])), [habitaciones])
-  const pestaña = ['inicio', 'casa', 'compras', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
+  const pestaña = ['inicio', 'casa', 'compras', 'ofertas', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
   const usuario = useUsuario()
 
   return (
@@ -64,6 +65,7 @@ export default function App() {
       {actual.pantalla === 'contacto' && <DetalleContacto id={actual.id} nav={nav} />}
       {actual.pantalla === 'contactoForm' && <FormContacto id={actual.id} nav={nav} />}
       {actual.pantalla === 'compras' && <Compras nav={nav} nombreHab={nombreHab} />}
+      {actual.pantalla === 'ofertas' && <PantallaOfertas />}
       {actual.pantalla === 'gastos' && <Gastos nav={nav} nombreHab={nombreHab} />}
       {actual.pantalla === 'ajustes' && <Ajustes habitaciones={habitaciones} />}
       {/* Bottom tab bar on the phone (main screens only); a fixed side bar on wide screens (always). */}
@@ -76,6 +78,7 @@ export default function App() {
           ['inicio', 'Tareas', IconoLista],
           ['casa', 'Casa', IconoCasa],
           ['compras', 'Compras', IconoCarro],
+          ['ofertas', 'Ofertas', IconoOferta],
           ['gastos', 'Gastos', IconoGastos],
           ['ajustes', 'Ajustes', IconoAjustes],
         ].map(([clave, texto, Icono]) => (
@@ -746,6 +749,7 @@ function Compras({ nav, nombreHab }) {
         <div className="vacio">
           <p className="vacio-titulo">Lista vacía.</p>
           <p>Los materiales que añadas a tus tareas aparecerán aquí.</p>
+          <button className="enlace" onClick={() => nav.raiz('ofertas')}>Ver ofertas y ferreterías cerca</button>
         </div>
       )}
       {(datos ?? []).map(({ tarea, materiales }) => (
@@ -1239,6 +1243,7 @@ const IconoCompartir = () => <svg {...svg} width={18} height={18}><circle cx="6"
 const IconoDescargar = () => <svg {...svg} width={18} height={18}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
 export const IconoClip = () => <svg {...svg} width={18} height={18}><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4L14.5 7" /></svg>
 export const IconoTelefono = () => <svg {...svg} width={18} height={18}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" /></svg>
+const IconoOferta = () => <svg {...svg}><path d="M3.5 12V4.5H11l9.5 9.5-7.5 7.5z" /><circle cx="7.8" cy="8.8" r="1.4" /><path d="m10 15 5-5" /></svg>
 const IconoSol = () => <svg {...svg} width={18} height={18}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" /></svg>
 const IconoLuna = () => <svg {...svg} width={18} height={18}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>
 const IconoAuto = () => <svg {...svg} width={18} height={18}><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5v17A8.5 8.5 0 0 0 12 3.5z" fill="currentColor" /></svg>

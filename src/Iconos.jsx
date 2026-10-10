@@ -47,7 +47,7 @@ const REGLAS = [
   [/electric|luz|ilumina/, 'rayo', 'ambar'],
   [/gas|calef[oó]n|termotanque|caldera|estufa|calefac/, 'llama', 'coral'],
   [/pint/, 'rodillo', 'coral'],
-  [/alba[ñn]il|corral[oó]n|construc|cemento|ladrill/, 'ladrillos', 'ambar'],
+  [/alba[ñn]il|corral[oó]n|construc|cemento|ladrill|bricolaje/, 'ladrillos', 'ambar'],
   [/carpinter|madera|mueble/, 'martillo', 'ambar'],
   [/cerraj|llave|puerta/, 'llave', 'gris'],
   [/heladera|nevera|freezer|frigor/, 'heladera', 'azul'],

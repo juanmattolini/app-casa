@@ -620,3 +620,21 @@ main.acceso .acceso-tarjeta { border-radius: 26px; padding: 22px 20px; }
   .cabecera-inicio { grid-template-columns: 1fr minmax(320px, 420px); align-items: end; gap: 14px 32px; }
   .cabecera-arriba { grid-column: 1 / -1; }
 }
+
+/* ---------- Ofertas: comercios cerca (Cercanos.jsx) ---------- */
+.pestanas button svg { width: 48px; }
+.cercanos-invitar { grid-template-columns: auto 1fr; align-items: center; gap: 12px 14px; }
+.cercanos-invitar .boton { grid-column: 1 / -1; }
+.cercanos-barra { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.cercanos-barra .chips { margin: 0; padding: 0; }
+.chip:disabled { opacity: 0.6; }
+.cercano { gap: 12px; }
+.cercano .fila-cuerpo { padding: 2px 0; }
+.cercano-acciones { display: flex; gap: 6px; flex: none; }
+.ofertas + .cercanos, .cercanos + .ofertas { margin-top: 26px; }
+@media (min-width: 900px) {
+  .pantalla.con-pestanas > .cercanos { max-width: none; }
+  .pestanas > button svg { width: 22px; }
+  .cercanos-invitar { grid-template-columns: auto 1fr auto; }
+  .cercanos-invitar .boton { grid-column: auto; }
+}
