@@ -23,3 +23,9 @@ presupuesto, pestaña Gastos (gastado y por pagar según el presupuesto elegido,
 habitación), compartir la lista de compras y copia de seguridad en un archivo .json (Ajustes).
 
 Los datos viven solo en el navegador del dispositivo; la copia de seguridad los guarda fuera.
+
+## Visitas (Google Analytics)
+
+La app cuenta las visitas con Google Analytics 4 si tiene un ID de medición. Solo se envía la visita
+a la página, nunca tareas ni datos personales. Para activarlo, poner el ID `G-XXXXXXXXXX` en
+`src/analitica.js` (o en la variable `VITE_GA_ID` al compilar). Sin ID no se carga nada.
