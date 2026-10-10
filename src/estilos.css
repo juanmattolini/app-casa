@@ -429,3 +429,52 @@ main.acceso .acceso-tarjeta { border-radius: 26px; padding: 22px 20px; }
 .documentos > div { display: grid; gap: 6px; align-content: start; min-width: 0; }
 .oficio { margin-top: 4px; font-size: 1rem; }
 .detalle .botones-foto { margin-top: 0; }
+
+/* ---------- Ofertas de auspiciantes (Compras) ---------- */
+.ofertas { margin-top: 26px; }
+.ofertas h2 { display: flex; align-items: center; gap: 8px; }
+.aus {
+  display: inline-block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--tinta-2); background: var(--papel-2); border: 1px solid var(--linea); border-radius: 99px; padding: 1px 9px;
+}
+.lista-ofertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.oferta-tarjeta {
+  width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 12px 14px;
+  background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); box-shadow: var(--sombra-suave);
+}
+.oferta-tarjeta:active { transform: scale(0.99); }
+.oferta-desc {
+  flex: none; min-width: 74px; text-align: center; padding: 10px 8px; border-radius: 14px;
+  font-family: var(--f-titulo); font-weight: 800; font-size: 1.05rem; line-height: 1.1;
+  background: color-mix(in srgb, var(--ambar) 18%, var(--papel)); color: var(--tinta); border: 1px dashed var(--ambar);
+}
+.oferta-cuerpo { display: grid; gap: 2px; min-width: 0; }
+.oferta-titulo { font-weight: 600; overflow-wrap: anywhere; }
+.oferta-meta { font-size: 0.85rem; color: var(--tinta-2); }
+.oferta-match { font-size: 0.8rem; font-weight: 600; color: var(--pino); }
+
+.hoja-fondo {
+  position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center;
+  background: rgb(10 20 16 / 0.5); animation: fundir 0.2s ease-out;
+}
+@keyframes fundir { from { opacity: 0; } }
+.hoja {
+  width: 100%; max-width: 560px; max-height: 90dvh; overflow-y: auto; display: grid; gap: 12px; justify-items: start;
+  background: var(--papel); border-radius: 28px 28px 0 0; padding: 12px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -10px 40px rgb(20 40 32 / 0.28); animation: subir 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes subir { from { transform: translateY(100%); } }
+.hoja-asa { justify-self: center; width: 44px; height: 5px; border-radius: 99px; background: var(--linea); margin-bottom: 4px; }
+.hoja h3 { margin: 0; font-family: var(--f-titulo); font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.oferta-caja {
+  width: 100%; display: grid; gap: 4px; padding: 14px 16px; border-radius: 16px;
+  background: color-mix(in srgb, var(--ambar) 16%, var(--papel)); border: 1px dashed var(--ambar);
+}
+.oferta-caja strong { font-family: var(--f-titulo); font-size: 1.9rem; line-height: 1; }
+.oferta-caja span { font-size: 0.92rem; color: var(--tinta-2); }
+.hoja .boton { width: 100%; }
+.cupon { width: 100%; display: grid; gap: 8px; justify-items: center; text-align: center; }
+.cupon-codigo {
+  margin: 4px 0; padding: 14px 20px; width: 100%; border-radius: 16px; background: var(--papel-2); border: 1px solid var(--linea);
+  font-family: var(--f-titulo); font-weight: 800; font-size: 2rem; letter-spacing: 0.08em; color: var(--pino); user-select: all;
+}

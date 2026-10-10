@@ -5,6 +5,7 @@ import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
 import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
 import Nube from './Nube.jsx'
+import Ofertas from './Ofertas.jsx'
 import { Casa, DetalleAparato, DetalleContacto, FormAparato, FormContacto, mismoNombre } from './Casa.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
@@ -721,6 +722,9 @@ function Compras({ nav }) {
           </ul>
         </section>
       ))}
+      {total > 0 && (
+        <Ofertas materiales={(datos ?? []).flatMap((g) => g.materiales.filter((m) => !m.comprado).map((m) => m.nombre))} />
+      )}
     </main>
   )
 }
