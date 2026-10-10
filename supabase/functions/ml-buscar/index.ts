@@ -1,6 +1,6 @@
 // Edge Function "ml-buscar": busca un material en Mercado Libre y devuelve 3 opciones + precio de referencia.
 //
-// POST { q: "pintura esmalte blanco" }  →  { opciones: [{ id, titulo, precio, moneda, foto, envioGratis, enlace }],
+// POST { q: "pintura esmalte blanco" }  (o GET ?q=..., para probar desde el navegador)  →  { opciones: [{ id, titulo, precio, moneda, foto, envioGratis, enlace }],
 //                                            referencia, moneda, prueba?, cache? }
 //
 // Las credenciales viven solo acá (secrets de Supabase), nunca en la app:
@@ -19,7 +19,7 @@ const API = 'https://api.mercadolibre.com'
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 const json = (cuerpo: unknown, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
@@ -103,10 +103,11 @@ function simulado(q: string): Resultado {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
-  if (req.method !== 'POST') return json({ error: 'usar POST' }, 405)
-
   let q = ''
-  try { q = normal(String((await req.json()).q ?? '')).slice(0, 80) } catch { /* cuerpo inválido */ }
+  if (req.method === 'GET') q = normal(new URL(req.url).searchParams.get('q') ?? '').slice(0, 80)
+  else {
+    try { q = normal(String((await req.json()).q ?? '')).slice(0, 80) } catch { /* cuerpo inválido */ }
+  }
   if (q.length < 2) return json({ error: 'falta q' }, 400)
 
   if (!Deno.env.get('ML_CLIENT_ID')) return json(simulado(q))
