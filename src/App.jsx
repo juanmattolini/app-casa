@@ -4,8 +4,10 @@ import { db, PRIORIDADES, QUIEN, REPETICIONES, alternarHecha, borrarEjemplos, bo
 import { abrirIcs, archivoIcs, enlaceGoogle } from './calendario.js'
 import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
-import Nube from './Nube.jsx'
+import Nube, { Avatar, useUsuario } from './Nube.jsx'
 import Ofertas from './Ofertas.jsx'
+import { IconoCategoria } from './Iconos.jsx'
+import { alternarTema, temaEfectivo, useTema } from './tema.js'
 import { Casa, DetalleAparato, DetalleContacto, FormAparato, FormContacto, mismoNombre } from './Casa.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
 
@@ -49,6 +51,7 @@ export default function App() {
   const habitaciones = useLiveQuery(() => db.habitaciones.orderBy('nombre').toArray(), [], [])
   const nombreHab = useMemo(() => Object.fromEntries(habitaciones.map((h) => [h.id, h.nombre])), [habitaciones])
   const pestaña = ['inicio', 'casa', 'compras', 'gastos', 'ajustes'].includes(actual.pantalla) ? actual.pantalla : null
+  const usuario = useUsuario()
 
   return (
     <div className="app">
@@ -60,26 +63,53 @@ export default function App() {
       {actual.pantalla === 'aparatoForm' && <FormAparato id={actual.id} nav={nav} habitaciones={habitaciones} />}
       {actual.pantalla === 'contacto' && <DetalleContacto id={actual.id} nav={nav} />}
       {actual.pantalla === 'contactoForm' && <FormContacto id={actual.id} nav={nav} />}
-      {actual.pantalla === 'compras' && <Compras nav={nav} />}
+      {actual.pantalla === 'compras' && <Compras nav={nav} nombreHab={nombreHab} />}
       {actual.pantalla === 'gastos' && <Gastos nav={nav} nombreHab={nombreHab} />}
       {actual.pantalla === 'ajustes' && <Ajustes habitaciones={habitaciones} />}
-      {pestaña && (
-        <nav className="pestanas" aria-label="Secciones">
-          {[
-            ['inicio', 'Tareas', IconoLista],
-            ['casa', 'Casa', IconoCasa],
-            ['compras', 'Compras', IconoCarro],
-            ['gastos', 'Gastos', IconoGastos],
-            ['ajustes', 'Ajustes', IconoAjustes],
-          ].map(([clave, texto, Icono]) => (
-            <button key={clave} className={pestaña === clave ? 'activa' : ''} onClick={() => nav.raiz(clave)}>
-              <Icono />
-              <span>{texto}</span>
+      {/* Bottom tab bar on the phone (main screens only); a fixed side bar on wide screens (always). */}
+      <nav className={`pestanas ${pestaña ? '' : 'interior'}`} aria-label="Secciones">
+        <div className="lateral-marca">
+          <img src="icon.svg" alt="" width="36" height="36" />
+          <span>Casa</span>
+        </div>
+        {[
+          ['inicio', 'Tareas', IconoLista],
+          ['casa', 'Casa', IconoCasa],
+          ['compras', 'Compras', IconoCarro],
+          ['gastos', 'Gastos', IconoGastos],
+          ['ajustes', 'Ajustes', IconoAjustes],
+        ].map(([clave, texto, Icono]) => (
+          <button key={clave} className={(pestaña ?? SECCION_DE[actual.pantalla]) === clave ? 'activa' : ''} onClick={() => nav.raiz(clave)}>
+            <Icono />
+            <span>{texto}</span>
+          </button>
+        ))}
+        <div className="lateral-pie">
+          <BotonTema conTexto />
+          {usuario && (
+            <button className="lateral-usuario" onClick={() => nav.raiz('ajustes')} title={usuario.email}>
+              <Avatar usuario={usuario} />
+              <span><strong>{usuario.nombre}</strong><span className="tenue">{usuario.email}</span></span>
             </button>
-          ))}
-        </nav>
-      )}
+          )}
+        </div>
+      </nav>
     </div>
+  )
+}
+
+// Which section an inner screen belongs to, to highlight it in the side bar.
+const SECCION_DE = { detalle: 'inicio', formulario: 'inicio', aparato: 'casa', aparatoForm: 'casa', contacto: 'casa', contactoForm: 'casa' }
+
+function BotonTema({ conTexto = false }) {
+  const [tema] = useTema()
+  const oscuro = temaEfectivo(tema) === 'dark'
+  const texto = oscuro ? 'Modo claro' : 'Modo oscuro'
+  return (
+    <button className={`boton-tema ${conTexto ? 'con-texto' : ''}`} onClick={alternarTema} aria-label={`Cambiar a ${texto.toLowerCase()}`} title={texto}>
+      {oscuro ? <IconoSol /> : <IconoLuna />}
+      {conTexto && <span>{texto}</span>}
+    </button>
   )
 }
 
@@ -125,13 +155,25 @@ function Inicio({ nav, nombreHab, habitaciones }) {
   const pendientes = (tareas ?? []).filter((t) => t.estado !== 'hecha').length
   const hayEjemplos = (tareas ?? []).some((t) => t.ejemplo)
   const filtrando = busqueda || habFiltro || prioFiltro
+  const usuario = useUsuario()
+  const primerNombre = usuario?.nombre.split(/\s+/)[0]
 
   return (
     <main className="pantalla con-pestanas">
       <header className="cabecera-inicio">
-        <div className="cabecera-textos">
+        <div className="cabecera-arriba">
           <p className="sobretitulo">{fechaLarga()}</p>
-          <h1>{saludo()}</h1>
+          <div className="cabecera-botones">
+            <BotonTema />
+            {usuario && (
+              <button className="cabecera-usuario" onClick={() => nav.raiz('ajustes')} aria-label={`Tu cuenta: ${usuario.nombre}`}>
+                <Avatar usuario={usuario} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="cabecera-textos">
+          <h1>{saludo()}{primerNombre ? <>, <span className="nombre-usuario">{primerNombre}</span></> : ''}</h1>
           <p className="resumen">
             {pendientes === 0 ? 'Todo al día en casa' : `${pendientes} ${pendientes === 1 ? 'tarea pendiente' : 'tareas pendientes'}`}
           </p>
@@ -152,7 +194,7 @@ function Inicio({ nav, nombreHab, habitaciones }) {
           <button className={`chip ${habFiltro === '' ? 'activo' : ''}`} aria-pressed={habFiltro === ''} onClick={() => setHabFiltro('')}>Todas</button>
           {habitaciones.map((h) => (
             <button key={h.id} className={`chip ${habFiltro === String(h.id) ? 'activo' : ''}`} aria-pressed={habFiltro === String(h.id)}
-              onClick={() => setHabFiltro(habFiltro === String(h.id) ? '' : String(h.id))}>{h.nombre}</button>
+              onClick={() => setHabFiltro(habFiltro === String(h.id) ? '' : String(h.id))}><IconoCategoria texto={h.nombre} chico />{h.nombre}</button>
           ))}
           <span className="chips-separador" aria-hidden="true" />
           {PRIORIDADES.map((p) => (
@@ -248,7 +290,7 @@ function FilaTarea({ tarea, habitacion, miniatura, materialesPendientes, onAbrir
               {grupo === 'vencidas' ? `Hace ${diasDeRetraso(tarea.fechaLimite)} d` : fechaCorta(tarea.fechaLimite)}
             </span>
           )}
-          {habitacion && <span className="etiqueta-hab">{habitacion}</span>}
+          {habitacion && <span className="etiqueta-hab"><IconoCategoria texto={habitacion} chico />{habitacion}</span>}
           {tarea.repetir && !hecha && <span className="con-icono"><IconoRepetir /> {etiquetaRepetir(tarea.repetir)}</span>}
           {tarea.recordatorio && !hecha && <span className="con-icono"><IconoCampana /> {recordatorioTexto(tarea.recordatorio)}</span>}
           {tarea.quien === 'pro' && !hecha && <span>Profesional</span>}
@@ -285,7 +327,7 @@ function Detalle({ id, nav, nombreHab }) {
       <article className="detalle">
         <h1 className={hecha ? 'tachado' : ''}>{tarea.titulo}</h1>
         <dl className="datos">
-          <div><dt>Habitación</dt><dd>{nombreHab[tarea.habitacionId] ?? 'Sin asignar'}</dd></div>
+          <div><dt>Habitación</dt><dd className="con-icono">{nombreHab[tarea.habitacionId] && <IconoCategoria texto={nombreHab[tarea.habitacionId]} chico />}{nombreHab[tarea.habitacionId] ?? 'Sin asignar'}</dd></div>
           <div><dt>Prioridad</dt><dd><span className={`pastilla prio-${tarea.prioridad}`}>{prio?.etiqueta}</span></dd></div>
           <div><dt>Fecha límite</dt><dd className={grupoDe(tarea) === 'vencidas' ? 'tarde' : ''}>{tarea.fechaLimite ? fechaCorta(tarea.fechaLimite) : 'Sin fecha'}</dd></div>
           <div><dt>Estado</dt><dd>{hecha ? 'Hecha' : 'Pendiente'}</dd></div>
@@ -667,7 +709,7 @@ function Formulario({ id, preset, nav, habitaciones }) {
 
 /* ---------- Compras ---------- */
 
-function Compras({ nav }) {
+function Compras({ nav, nombreHab }) {
   const datos = useLiveQuery(async () => {
     const mats = await db.materiales.toArray()
     const tareas = await db.tareas.toArray()
@@ -708,7 +750,10 @@ function Compras({ nav }) {
       )}
       {(datos ?? []).map(({ tarea, materiales }) => (
         <section key={tarea.id} className="bloque compra">
-          <button className="compra-tarea" onClick={() => nav.ir({ pantalla: 'detalle', id: tarea.id })}>{tarea.titulo}</button>
+          <button className="compra-tarea" onClick={() => nav.ir({ pantalla: 'detalle', id: tarea.id })}>
+            <IconoCategoria texto={nombreHab[tarea.habitacionId] ?? tarea.titulo} />
+            <span>{tarea.titulo}{nombreHab[tarea.habitacionId] && <span className="tenue compra-hab">{nombreHab[tarea.habitacionId]}</span>}</span>
+          </button>
           <ul className="materiales">
             {materiales.map((m) => (
               <li key={m.id}>
@@ -792,6 +837,7 @@ function Ajustes({ habitaciones }) {
     <main className="pantalla con-pestanas">
       <header className="cabecera-simple"><h1>Ajustes</h1></header>
       <Nube />
+      <Apariencia />
       <section className="bloque">
         <h2>Habitaciones</h2>
         <ul className="habitaciones">
@@ -804,7 +850,7 @@ function Ajustes({ habitaciones }) {
                 </form>
               ) : (
                 <>
-                  <span>{h.nombre}</span>
+                  <span className="hab-nombre"><IconoCategoria texto={h.nombre} />{h.nombre}</span>
                   <span className="hab-acciones">
                     <button className="boton-texto" onClick={() => setEditando({ id: h.id, nombre: h.nombre })}>Renombrar</button>
                     {!enUso.has(h.id) && <button className="boton-texto peligro-texto" onClick={() => db.habitaciones.delete(h.id)}>Quitar</button>}
@@ -851,6 +897,23 @@ function Ajustes({ habitaciones }) {
         {mensaje && <p className={mensaje.error ? 'error' : 'tenue'} role="status">{mensaje.texto}</p>}
       </section>
     </main>
+  )
+}
+
+function Apariencia() {
+  const [tema, fijar] = useTema()
+  return (
+    <section className="bloque">
+      <h2>Apariencia</h2>
+      <div className="segmentado" role="radiogroup" aria-label="Tema de colores">
+        {[['auto', 'Automático', IconoAuto], ['light', 'Claro', IconoSol], ['dark', 'Oscuro', IconoLuna]].map(([valor, texto, Icono]) => (
+          <button key={valor} type="button" role="radio" aria-checked={tema === valor} className={`seg seg-tema ${tema === valor ? 'activo' : ''}`} onClick={() => fijar(valor)}>
+            <Icono /> {texto}
+          </button>
+        ))}
+      </div>
+      <p className="tenue pie">Automático sigue la configuración de tu celular o PC.</p>
+    </section>
   )
 }
 
@@ -1103,7 +1166,7 @@ function Gastos({ nav, nombreHab }) {
           {r.porHab.length > 0 && (
             <section className="bloque">
               <h2>Por habitación</h2>
-              <Barras filas={r.porHab} moneda={moneda} />
+              <Barras filas={r.porHab} moneda={moneda} iconos />
             </section>
           )}
           {r.listaPrevista.length > 0 && (
@@ -1127,13 +1190,13 @@ function Gastos({ nav, nombreHab }) {
   )
 }
 
-function Barras({ filas, moneda }) {
+function Barras({ filas, moneda, iconos = false }) {
   const max = Math.max(...filas.map(([, v]) => v), 1)
   return (
     <ul className="barras">
       {filas.map(([etiqueta, valor]) => (
         <li key={etiqueta}>
-          <div className="barra-texto"><span>{etiqueta}</span><span className="barra-valor">{dinero(valor, moneda)}</span></div>
+          <div className="barra-texto"><span className="con-icono">{iconos && <IconoCategoria texto={etiqueta} chico />}{etiqueta}</span><span className="barra-valor">{dinero(valor, moneda)}</span></div>
           <div className="barra-pista"><div className="barra-relleno" style={{ width: `${Math.max(2, (valor / max) * 100)}%` }} /></div>
         </li>
       ))}
@@ -1176,4 +1239,7 @@ const IconoCompartir = () => <svg {...svg} width={18} height={18}><circle cx="6"
 const IconoDescargar = () => <svg {...svg} width={18} height={18}><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
 export const IconoClip = () => <svg {...svg} width={18} height={18}><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4L14.5 7" /></svg>
 export const IconoTelefono = () => <svg {...svg} width={18} height={18}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" /></svg>
+const IconoSol = () => <svg {...svg} width={18} height={18}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" /></svg>
+const IconoLuna = () => <svg {...svg} width={18} height={18}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>
+const IconoAuto = () => <svg {...svg} width={18} height={18}><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5v17A8.5 8.5 0 0 0 12 3.5z" fill="currentColor" /></svg>
 const IconoCasa = () => <svg {...svg}><path d="M3.5 11 12 4l8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M10 20v-5h4v5" /></svg>

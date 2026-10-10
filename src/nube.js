@@ -375,6 +375,22 @@ export async function ponerClave(clave) {
   if (error) throw error
 }
 
+// The name shown in the app is kept in the account (user metadata), so every device sees it.
+export async function ponerNombre(nombre) {
+  const { error } = await nube.auth.updateUser({ data: { nombre } })
+  if (error) throw error
+}
+
+// Saved name, or a readable guess from the email ("juan.perez@..." -> "Juan Perez").
+export function nombreUsuario(sesion) {
+  const u = sesion?.user
+  if (!u) return ''
+  const guardado = (u.user_metadata?.nombre ?? u.user_metadata?.full_name ?? '').trim()
+  if (guardado) return guardado
+  const local = (u.email ?? '').split('@')[0].replace(/[\d_.+-]+/g, ' ').trim()
+  return local.split(/\s+/).filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
+}
+
 export async function salir() {
   await nube.auth.signOut()
 }

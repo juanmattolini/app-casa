@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, OFICIOS, borrarAparato, borrarContacto, hoyISO } from './db.js'
 import { prepararFoto } from './imagenes.js'
 import { dinero, fechaCorta, useBlobUrl } from './util.js'
+import { IconoCategoria } from './Iconos.jsx'
 import {
   Adjunto, BarraSuperior, IconoCamara, IconoClip, IconoImagen, IconoMas, IconoTelefono, Visor, useMoneda,
 } from './App.jsx'
@@ -84,6 +85,7 @@ export function Casa({ nav, nombreHab }) {
         <ul className="lista">
           {contactos.map((c) => (
             <li key={c.id} className="fila fila-contacto">
+              <IconoCategoria texto={c.oficio || c.nombre} />
               <button className="fila-cuerpo" onClick={() => nav.ir({ pantalla: 'contacto', id: c.id })}>
                 <span className="fila-titulo">{c.nombre}</span>
                 {c.oficio && <span className="tenue">{c.oficio}</span>}
@@ -112,11 +114,11 @@ function FilaAparato({ aparato, habitacion, onAbrir }) {
         <span className="fila-titulo">{aparato.nombre}</span>
         <span className="fila-meta">
           {marca && <span>{marca}</span>}
-          {habitacion && <span className="etiqueta-hab">{habitacion}</span>}
+          {habitacion && <span className="etiqueta-hab"><IconoCategoria texto={habitacion} chico />{habitacion}</span>}
           {g && <span className={`garantia ${g.clase}`}>{g.texto}</span>}
         </span>
       </button>
-      {url ? <img className="miniatura" src={url} alt="" onClick={onAbrir} /> : <span className="miniatura sin-foto" aria-hidden="true" onClick={onAbrir} />}
+      {url ? <img className="miniatura" src={url} alt="" onClick={onAbrir} /> : <span className="miniatura sin-foto" onClick={onAbrir}><IconoCategoria texto={aparato.nombre} /></span>}
     </li>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { hoyISO } from './db.js'
 import { escucharNube, estadoNube, nube } from './nube.js'
+import { IconoCategoria } from './Iconos.jsx'
 
 // Ofertas de comercios auspiciantes, debajo de la lista de Compras.
 // Se leen de Supabase (tabla "ofertas", solo lectura) y se guardan en el dispositivo para verlas sin conexión.
@@ -45,8 +46,8 @@ function useSesion() {
 
 // Palabras de la oferta que aparecen en los materiales por comprar.
 function coincidencias(oferta, textos) {
-  const palabras = (oferta.palabras ?? []).map(normal).filter(Boolean)
-  return palabras.filter((p) => textos.some((t) => t.includes(p)))
+  // Compared without accents, but shown as the shop wrote them ("teflón", not "teflon").
+  return (oferta.palabras ?? []).filter((p) => normal(p) && textos.some((t) => t.includes(normal(p))))
 }
 
 async function obtenerCupon(oferta, sesion) {
@@ -94,7 +95,8 @@ export default function Ofertas({ materiales }) {
               <span className="oferta-desc">{oferta.descuento}</span>
               <span className="oferta-cuerpo">
                 <span className="oferta-titulo">{oferta.titulo}</span>
-                <span className="oferta-meta">
+                <span className="oferta-meta con-icono">
+                  <IconoCategoria texto={oferta.rubro || oferta.comercio} chico />
                   {oferta.comercio}{oferta.zona ? ` · ${oferta.zona}` : ''}
                 </span>
                 {coincide.length > 0 && <span className="oferta-match">Para tu lista: {coincide.join(', ')}</span>}

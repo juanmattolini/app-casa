@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react'
-import { entrar, escucharNube, estadoNube, nube, ponerClave, salir, sincronizar } from './nube.js'
+import { entrar, escucharNube, estadoNube, nombreUsuario, nube, ponerClave, ponerNombre, salir, sincronizar } from './nube.js'
 import { olvidarOmision } from './Acceso.jsx'
 
 export function useNube() {
   const [e, setE] = useState(estadoNube)
   useEffect(() => escucharNube(setE), [])
   return e
+}
+
+// Signed-in person: { nombre, email } or null without a session.
+export function useUsuario() {
+  const { sesion } = useNube()
+  if (!sesion) return null
+  return { nombre: nombreUsuario(sesion), email: sesion.user.email }
+}
+
+const iniciales = (nombre) => nombre.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?'
+
+export function Avatar({ usuario, grande = false }) {
+  return <span className={`avatar ${grande ? 'grande' : ''}`} aria-hidden="true">{iniciales(usuario?.nombre ?? '')}</span>
 }
 
 const FASES = {
@@ -59,8 +72,15 @@ export default function Nube() {
 
   return (
     <section className="bloque">
-      <h2>Nube</h2>
-      <p>Conectado como <strong>{sesion.user.email}</strong></p>
+      <h2>Tu cuenta</h2>
+      <div className="cuenta">
+        <Avatar usuario={{ nombre: nombreUsuario(sesion) }} grande />
+        <div className="cuenta-textos">
+          <strong>{nombreUsuario(sesion)}</strong>
+          <span className="tenue">{sesion.user.email}</span>
+        </div>
+      </div>
+      <CambiarNombre actual={sesion.user.user_metadata?.nombre ?? ''} sugerido={nombreUsuario(sesion)} />
       <p className={fase === 'error' ? 'error' : 'tenue'} role="status">
         {FASES[fase] ?? ''}
         {fase === 'al-dia' && ultima && ` Última vez: ${new Date(ultima).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}.`}
@@ -72,6 +92,36 @@ export default function Nube() {
       <p className="tenue pie">Al cerrar sesión los datos se quedan en este móvil.</p>
       <CambiarClave />
     </section>
+  )
+}
+
+function CambiarNombre({ actual, sugerido }) {
+  const [nombre, setNombre] = useState(null)
+  const [mensaje, setMensaje] = useState(null)
+  const [ocupado, setOcupado] = useState(false)
+  const valor = nombre ?? actual
+  const guardar = async (e) => {
+    e.preventDefault()
+    const limpio = valor.trim()
+    if (!limpio) return setMensaje({ error: true, texto: 'Escribe tu nombre.' })
+    setOcupado(true); setMensaje(null)
+    try {
+      await ponerNombre(limpio)
+      setNombre(null)
+      setMensaje({ texto: 'Nombre guardado.' })
+    } catch (err) {
+      console.error(err)
+      setMensaje({ error: true, texto: 'No se pudo guardar el nombre. Revisa la conexión.' })
+    } finally { setOcupado(false) }
+  }
+  return (
+    <>
+      <form className="fila-form" onSubmit={guardar}>
+        <input id="nube-nombre" autoComplete="name" placeholder={sugerido || 'Tu nombre'} value={valor} onChange={(e) => setNombre(e.target.value)} aria-label="Tu nombre" maxLength={40} />
+        <button className="boton pequeño" disabled={ocupado}>Guardar nombre</button>
+      </form>
+      {mensaje && <p className={mensaje.error ? 'error' : 'tenue'} role="status">{mensaje.texto}</p>}
+    </>
   )
 }
 
