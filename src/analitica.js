@@ -1,6 +1,6 @@
 // Google Analytics 4: only counts visits (page_view), never task data.
 // Paste the measurement ID (G-XXXXXXXXXX) here or set VITE_GA_ID. Empty = analytics off.
-export const GA_ID = import.meta.env.VITE_GA_ID ?? ''
+export const GA_ID = import.meta.env.VITE_GA_ID ?? 'G-K7EV3ZPJCZ'
 
 export function iniciarAnalitica() {
   // Skip the single-file preview and local dev so only real visits to the site count.
