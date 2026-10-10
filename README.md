@@ -42,5 +42,8 @@ sugerido de los materiales con el precio de referencia (mediana de los primeros 
   `ML_AFILIADO` (parámetros de afiliado que se suman a cada enlace). Sin `ML_CLIENT_ID` devuelve datos simulados.
 - Desplegar: `supabase functions deploy ml-buscar --no-verify-jwt` (la app la llama con la clave publicable).
 - En la app se activa con `VITE_ML` al compilar: vacío = apagado, `prueba` = datos simulados en el
-  dispositivo, `si` = usa la función. También se puede probar abriendo la app con `?ml=prueba`
+  dispositivo, `si` = usa la función, `enlace` = sin API: el botón abre la búsqueda en Mercado Libre con
+  los parámetros de afiliado de `VITE_ML_AFILIADO` (sin precios ni presupuesto sugerido).
+- Ojo (2026-10): Mercado Libre responde 403 "PolicyAgent" a `/sites/.../search` y `/products/search` con el
+  token de aplicación, aunque las credenciales sean válidas. Hasta que habilite la búsqueda, usar `enlace`. También se puede probar abriendo la app con `?ml=prueba`
   (queda guardado en ese dispositivo; `?ml=no` lo apaga).

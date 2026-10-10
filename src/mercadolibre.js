@@ -10,6 +10,7 @@ import { normal } from './Ofertas.jsx'
 //   ''/no    apagado: no se muestra nada (por defecto hasta que la función esté desplegada)
 //   prueba   datos simulados en el propio dispositivo, para ver la pantalla sin servidor
 //   si       llama a la función de verdad
+//   enlace   sin API: el botón abre la búsqueda en Mercado Libre (con VITE_ML_AFILIADO); sin precios ni presupuesto
 
 const CLAVE_MODO = 'app-casa-ml-modo'
 const CLAVE_CACHE = 'app-casa-ml'
@@ -26,8 +27,18 @@ function leerModo() {
   }
 }
 const MODO = leerModo()
-export const mlActivo = MODO === 'prueba' || (MODO === 'si' && !!nube)
+export const mlEnlace = MODO === 'enlace'
+export const mlActivo = MODO === 'prueba' || mlEnlace || (MODO === 'si' && !!nube)
 export const mlPrueba = MODO === 'prueba'
+// Precios y presupuesto sugerido solo cuando hay búsqueda (real o simulada).
+export const mlPrecios = mlActivo && !mlEnlace
+
+// Búsqueda en la web de Mercado Libre, con los parámetros de afiliado si están configurados.
+export function enlaceBusqueda(texto) {
+  const url = `https://listado.mercadolibre.com.ar/${encodeURIComponent(String(texto).trim().replace(/\s+/g, '-'))}`
+  const extra = (import.meta.env.VITE_ML_AFILIADO ?? '').trim().replace(/^[?&]/, '')
+  return extra ? `${url}?${extra}` : url
+}
 
 const leerCache = () => {
   try { return JSON.parse(localStorage.getItem(CLAVE_CACHE)) ?? {} } catch { return {} }
@@ -97,7 +108,7 @@ export function useReferencias(nombres) {
   const clave = [...new Set(nombres)].sort().join('\n')
   const [refs, setRefs] = useState({})
   useEffect(() => {
-    if (!mlActivo || !clave) return
+    if (!mlPrecios || !clave) return
     let vivo = true
     ;(async () => {
       for (const nombre of clave.split('\n')) {

@@ -643,6 +643,7 @@ main.acceso .acceso-tarjeta { border-radius: 26px; padding: 22px 20px; }
 .compra-mat { display: flex; align-items: center; }
 .compra-mat label { flex: 1; min-width: 0; }
 .boton-ml {
+  text-decoration: none;
   flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; min-height: 36px; padding: 6px 12px;
   border-radius: 99px; font-size: 0.85rem; font-weight: 600; color: var(--tinta);
   background: color-mix(in srgb, var(--ambar) 18%, var(--papel)); border: 1px solid color-mix(in srgb, var(--ambar) 55%, var(--linea));

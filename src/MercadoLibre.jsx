@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { buscarML, estimar, mlActivo, mlPrueba, useReferencias } from './mercadolibre.js'
+import { buscarML, enlaceBusqueda, estimar, mlActivo, mlEnlace, mlPrecios, mlPrueba, useReferencias } from './mercadolibre.js'
 import { dinero } from './util.js'
 
 // Botón "Mercado Libre" junto a cada material por comprar, y la hoja con 3 opciones.
@@ -8,6 +8,14 @@ import { dinero } from './util.js'
 export function BotonML({ material, moneda }) {
   const [abierta, setAbierta] = useState(false)
   if (!mlActivo) return null
+  if (mlEnlace) {
+    return (
+      <a className="boton-ml" href={enlaceBusqueda(material.nombre)} target="_blank" rel="noopener sponsored"
+        aria-label={`Buscar ${material.nombre} en Mercado Libre (enlace de afiliado)`}>
+        <IconoBolsa /> Comprar
+      </a>
+    )
+  }
   return (
     <>
       <button type="button" className="boton-ml" onClick={() => setAbierta(true)} aria-label={`Ver ${material.nombre} en Mercado Libre`}>
@@ -37,7 +45,7 @@ function HojaML({ material, moneda, onCerrar }) {
   }, [onCerrar])
 
   const opciones = estado.datos?.opciones ?? []
-  const buscarTodo = `https://listado.mercadolibre.com.ar/${encodeURIComponent(material.nombre.trim().replace(/\s+/g, '-'))}`
+  const buscarTodo = enlaceBusqueda(material.nombre)
 
   return (
     <div className="hoja-fondo" onClick={onCerrar}>
@@ -78,7 +86,7 @@ function HojaML({ material, moneda, onCerrar }) {
 export function EstimadoMateriales({ materiales, moneda }) {
   const pendientes = useMemo(() => materiales.filter((m) => !m.comprado), [materiales])
   const refs = useReferencias(pendientes.map((m) => m.nombre))
-  if (!mlActivo || pendientes.length === 0) return null
+  if (!mlPrecios || pendientes.length === 0) return null
   const { total, faltan } = estimar(pendientes, refs)
   if (total === 0) return null
   return (
@@ -96,7 +104,7 @@ export function PresupuestoSugerido({ grupos, moneda, onAbrir }) {
     () => grupos.map((g) => ({ ...g, ...estimar(g.materiales, refs) })).filter((f) => f.total > 0),
     [grupos, refs],
   )
-  if (!mlActivo || filas.length === 0) return null
+  if (!mlPrecios || filas.length === 0) return null
   const total = filas.reduce((n, f) => n + f.total, 0)
   return (
     <section className="bloque sugerido-ml">
