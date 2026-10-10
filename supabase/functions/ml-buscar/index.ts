@@ -62,11 +62,16 @@ async function obtenerToken() {
   return token.valor
 }
 
-async function buscarEnML(q: string, sitio: string): Promise<Resultado> {
-  const url = `${API}/sites/${sitio}/search?` + new URLSearchParams({ q, limit: '15' })
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${await obtenerToken()}` } })
-  if (!r.ok) throw new Error(`busqueda ${r.status}`)
-  const d = await r.json()
+// deno-lint-ignore no-explicit-any
+async function pedir(ruta: string): Promise<any> {
+  const r = await fetch(`${API}${ruta}`, { headers: { Authorization: `Bearer ${await obtenerToken()}` } })
+  if (!r.ok) throw new Error(`${ruta.split('?')[0]} ${r.status} ${(await r.text()).slice(0, 200)}`)
+  return r.json()
+}
+
+// Búsqueda de publicaciones (/sites/.../search). Mercado Libre la viene restringiendo para apps nuevas (403).
+async function buscarPublicaciones(q: string, sitio: string): Promise<Resultado> {
+  const d = await pedir(`/sites/${sitio}/search?` + new URLSearchParams({ q, limit: '15' }))
   // deno-lint-ignore no-explicit-any
   const items = (d.results ?? []).filter((x: any) => x.price > 0 && x.condition !== 'used')
   // deno-lint-ignore no-explicit-any
@@ -82,6 +87,36 @@ async function buscarEnML(q: string, sitio: string): Promise<Resultado> {
   // Referencia: mediana de los primeros resultados, menos sensible a packs y repuestos sueltos.
   // deno-lint-ignore no-explicit-any
   return { opciones, referencia: mediana(items.slice(0, 10).map((x: any) => x.price)), moneda: items[0]?.currency_id ?? null }
+}
+
+// Plan B: buscador de catálogo (/products/search) y el precio ganador de cada producto (buy_box_winner).
+async function buscarCatalogo(q: string, sitio: string): Promise<Resultado> {
+  const d = await pedir(`/products/search?` + new URLSearchParams({ status: 'active', site_id: sitio, q, limit: '8' }))
+  // deno-lint-ignore no-explicit-any
+  const productos = await Promise.all((d.results ?? []).slice(0, 8).map((p: any) => pedir(`/products/${p.id}`).catch(() => null)))
+  const conPrecio = productos.filter((p) => p?.buy_box_winner?.price > 0)
+  // deno-lint-ignore no-explicit-any
+  const opciones: Opcion[] = conPrecio.slice(0, 3).map((p: any) => ({
+    id: p.id,
+    titulo: p.name,
+    precio: p.buy_box_winner.price,
+    moneda: p.buy_box_winner.currency_id,
+    foto: p.pictures?.[0]?.url ?? null,
+    envioGratis: !!p.buy_box_winner.shipping?.free_shipping,
+    enlace: conAfiliado(p.permalink ?? `https://www.mercadolibre.com.ar/p/${p.id}`),
+  }))
+  // deno-lint-ignore no-explicit-any
+  const referencia = mediana(conPrecio.map((p: any) => p.buy_box_winner.price))
+  return { opciones, referencia, moneda: opciones[0]?.moneda ?? null }
+}
+
+async function buscarEnML(q: string, sitio: string): Promise<Resultado> {
+  try {
+    return await buscarPublicaciones(q, sitio)
+  } catch (e) {
+    if (!String(e).includes(' 403')) throw e
+    return await buscarCatalogo(q, sitio)
+  }
 }
 
 // Datos inventados pero estables para un mismo texto, para probar la pantalla sin credenciales.
