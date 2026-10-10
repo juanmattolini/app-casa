@@ -6,6 +6,7 @@ import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
 import Nube, { Avatar, useUsuario } from './Nube.jsx'
 import Ofertas from './Ofertas.jsx'
+import { BotonML, EstimadoMateriales, PresupuestoSugerido } from './MercadoLibre.jsx'
 import { IconoCategoria } from './Iconos.jsx'
 import { PantallaOfertas } from './Cercanos.jsx'
 import { alternarTema, temaEfectivo, useTema } from './tema.js'
@@ -373,6 +374,7 @@ function Detalle({ id, nav, nombreHab }) {
               ))}
             </ul>
           )}
+          {!hecha && <EstimadoMateriales materiales={materiales} moneda={moneda} />}
         </section>
 
         <BloquePresupuestos tareaId={id} contactoPreferido={contacto} />
@@ -713,6 +715,7 @@ function Formulario({ id, preset, nav, habitaciones }) {
 /* ---------- Compras ---------- */
 
 function Compras({ nav, nombreHab }) {
+  const moneda = useMoneda()
   const datos = useLiveQuery(async () => {
     const mats = await db.materiales.toArray()
     const tareas = await db.tareas.toArray()
@@ -760,12 +763,13 @@ function Compras({ nav, nombreHab }) {
           </button>
           <ul className="materiales">
             {materiales.map((m) => (
-              <li key={m.id}>
+              <li key={m.id} className="compra-mat">
                 <label className={m.comprado ? 'comprado' : ''}>
                   <input id={`compra-${m.id}`} type="checkbox" checked={m.comprado} onChange={() => db.materiales.update(m.id, { comprado: !m.comprado })} />
                   <span className="mat-nombre">{m.nombre}</span>
                   <span className="mat-cant">{cantidadTexto(m)}</span>
                 </label>
+                {!m.comprado && <BotonML material={m} moneda={moneda} />}
               </li>
             ))}
           </ul>
@@ -1120,6 +1124,17 @@ function Gastos({ nav, nombreHab }) {
     const elegidos = (await db.presupuestos.toArray()).filter((p) => p.elegido && p.precio != null && tareas[p.tareaId])
     return elegidos.map((p) => ({ presupuesto: p, tarea: tareas[p.tareaId] }))
   }, [], null)
+  // Pending tasks with materials still to buy, for the Mercado Libre estimate.
+  const porComprar = useLiveQuery(async () => {
+    const tareas = Object.fromEntries((await db.tareas.toArray()).filter((t) => t.estado !== 'hecha').map((t) => [t.id, t]))
+    const grupos = new Map()
+    for (const m of await db.materiales.toArray()) {
+      if (m.comprado || !tareas[m.tareaId]) continue
+      if (!grupos.has(m.tareaId)) grupos.set(m.tareaId, { tarea: tareas[m.tareaId], materiales: [] })
+      grupos.get(m.tareaId).materiales.push(m)
+    }
+    return [...grupos.values()]
+  }, [], [])
 
   const r = useMemo(() => {
     const gastado = [], previsto = []
@@ -1190,6 +1205,7 @@ function Gastos({ nav, nombreHab }) {
           )}
         </>
       )}
+      <PresupuestoSugerido grupos={porComprar} moneda={moneda} onAbrir={(id) => nav.ir({ pantalla: 'detalle', id })} />
     </main>
   )
 }
