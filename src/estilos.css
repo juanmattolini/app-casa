@@ -316,6 +316,21 @@ fieldset.campo > legend + * { clear: both; }
 .seg.activo { box-shadow: 0 2px 6px rgb(0 0 0 / 0.12); }
 .nuevo-material { display: grid; grid-template-columns: 1fr 64px 84px auto; gap: 6px; margin-top: 8px; }
 .nuevo-material input, .nuevo-material select { padding-inline: 10px; }
+.mat-editar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; color: inherit; min-height: 32px; }
+.materiales.editables li.editando { background: color-mix(in srgb, var(--pino) 9%, var(--papel)); }
+.listas-materiales { display: grid; gap: 10px; margin-top: 10px; justify-items: start; }
+.aviso-lista { margin: 8px 0 0; color: var(--pino); font-weight: 600; }
+.plantillas { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.plantilla {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left;
+  padding: 10px 12px; min-height: 56px; border-radius: 14px; background: var(--papel); border: 1px solid var(--linea); box-shadow: var(--sombra-suave); color: inherit;
+}
+.plantilla:active { transform: scale(0.98); }
+.plantilla.sugerida { border-color: var(--pino); box-shadow: 0 0 0 1px var(--pino); }
+.plantilla-icono { grid-row: 1 / span 2; font-size: 1.5rem; line-height: 1; }
+.plantilla-nombre { font-weight: 700; line-height: 1.2; }
+.plantilla-cuenta { font-size: 0.78rem; color: var(--tinta-2); }
+.plantilla.sugerida .plantilla-cuenta { color: var(--pino); font-weight: 600; }
 .botones-foto { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .error { color: var(--rojo); font-weight: 600; }
 .barra-guardar {
