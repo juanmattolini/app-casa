@@ -8,6 +8,7 @@ import Nube, { Avatar, useUsuario } from './Nube.jsx'
 import Ofertas from './Ofertas.jsx'
 import { BotonML, EstimadoMateriales, NotaAfiliado, PresupuestoSugerido } from './MercadoLibre.jsx'
 import { IconoCategoria } from './Iconos.jsx'
+import { materialesDePlantilla, ordenarPlantillas } from './plantillas.js'
 import { PantallaOfertas } from './Cercanos.jsx'
 import { alternarTema, temaEfectivo, useTema } from './tema.js'
 import { Casa, DetalleAparato, DetalleContacto, FormAparato, FormContacto, mismoNombre } from './Casa.jsx'
@@ -364,16 +365,18 @@ function Detalle({ id, nav, nombreHab }) {
           {materiales.length === 0 ? <p className="tenue">Sin materiales.</p> : (
             <ul className="materiales">
               {materiales.map((m) => (
-                <li key={m.id}>
+                <li key={m.id} className="compra-mat">
                   <label className={m.comprado ? 'comprado' : ''}>
                     <input id={`mat-${m.id}`} type="checkbox" checked={m.comprado} onChange={() => db.materiales.update(m.id, { comprado: !m.comprado })} />
                     <span className="mat-nombre">{m.nombre}</span>
                     <span className="mat-cant">{cantidadTexto(m)}</span>
                   </label>
+                  {!m.comprado && !hecha && <BotonML material={m} moneda={moneda} />}
                 </li>
               ))}
             </ul>
           )}
+          {!hecha && materiales.some((m) => !m.comprado) && <NotaAfiliado />}
           {!hecha && <EstimadoMateriales materiales={materiales} moneda={moneda} />}
         </section>
 
@@ -453,6 +456,9 @@ function Formulario({ id, preset, nav, habitaciones }) {
   const [fotos, setFotos] = useState([]) // existing {id, miniatura} and new {clave, imagen, miniatura}
   const [borradas, setBorradas] = useState([])
   const [nuevoMat, setNuevoMat] = useState({ nombre: '', cantidad: '', unidad: 'ud' })
+  const [editandoMat, setEditandoMat] = useState(null) // material being changed in the inputs below the list
+  const [listasAbiertas, setListasAbiertas] = useState(false)
+  const [avisoLista, setAvisoLista] = useState('')
   const [procesando, setProcesando] = useState(0)
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -477,12 +483,36 @@ function Formulario({ id, preset, nav, habitaciones }) {
 
   const cambiar = (campo) => (e) => setT((x) => ({ ...x, [campo]: e.target.value }))
 
-  const añadirMaterial = () => {
+  // The list with the material typed in the inputs applied: replaces the one being edited, or is added at the end.
+  const conNuevoMat = (ms) => {
     const nombre = nuevoMat.nombre.trim()
-    if (!nombre) return
+    if (!nombre) return ms
     const cantidad = nuevoMat.cantidad === '' ? null : Number(String(nuevoMat.cantidad).replace(',', '.'))
-    setMateriales((ms) => [...ms, { clave: crypto.randomUUID?.() ?? String(Math.random()), nombre, cantidad, unidad: nuevoMat.unidad, comprado: false }])
+    if (editandoMat) return ms.map((m) => (m === editandoMat ? { ...m, nombre, cantidad, unidad: nuevoMat.unidad } : m))
+    return [...ms, { clave: crypto.randomUUID?.() ?? String(Math.random()), nombre, cantidad, unidad: nuevoMat.unidad, comprado: false }]
+  }
+
+  const añadirMaterial = () => {
+    if (!nuevoMat.nombre.trim()) return
+    setMateriales(conNuevoMat)
+    setEditandoMat(null)
     setNuevoMat({ nombre: '', cantidad: '', unidad: nuevoMat.unidad })
+  }
+
+  const editarMaterial = (m) => {
+    setEditandoMat(m)
+    setNuevoMat({ nombre: m.nombre, cantidad: m.cantidad == null ? '' : String(m.cantidad).replace('.', ','), unidad: m.unidad || 'ud' })
+    document.getElementById('mat-nombre')?.focus()
+  }
+
+  const usarLista = (p) => {
+    const nuevos = materialesDePlantilla(p, materiales)
+      .map((m) => ({ ...m, clave: crypto.randomUUID?.() ?? String(Math.random()) }))
+    setMateriales((ms) => [...ms, ...nuevos])
+    setListasAbiertas(false)
+    setAvisoLista(nuevos.length === 0
+      ? `Ya tenías todos los materiales de ${p.nombre}.`
+      : `${nuevos.length === 1 ? 'Se añadió 1 material' : `Se añadieron ${nuevos.length} materiales`} de ${p.nombre}. Quita los que no necesites o toca uno para cambiarlo.`)
   }
 
   const elegirFotos = async (e) => {
@@ -513,9 +543,6 @@ function Formulario({ id, preset, nav, habitaciones }) {
     if (t.costo.trim() && costoEstimado == null) return setError('El costo estimado no es un número válido.')
     setGuardando(true)
     try {
-      const pendienteMat = nuevoMat.nombre.trim()
-        ? [{ nombre: nuevoMat.nombre.trim(), cantidad: nuevoMat.cantidad === '' ? null : Number(String(nuevoMat.cantidad).replace(',', '.')), unidad: nuevoMat.unidad, comprado: false }]
-        : []
       const recordatorio = t.recFecha ? { fecha: t.recFecha, hora: t.recHora || '09:00' } : null
       const [cada, unidad] = t.repetir.split('-')
       const datos = {
@@ -535,7 +562,7 @@ function Formulario({ id, preset, nav, habitaciones }) {
         ejemplo: false,
       }
       const nuevas = fotos.filter((f) => !f.id).map(({ imagen, miniatura, fecha }) => ({ imagen, miniatura, fecha }))
-      const tareaId = await guardarTarea(datos, [...materiales, ...pendienteMat], nuevas, borradas)
+      const tareaId = await guardarTarea(datos, conNuevoMat(materiales), nuevas, borradas)
       if (id) nav.volver()
       else nav.reemplazar({ pantalla: 'detalle', id: tareaId })
     } catch (err) {
@@ -659,10 +686,12 @@ function Formulario({ id, preset, nav, habitaciones }) {
           {materiales.length > 0 && (
             <ul className="materiales editables">
               {materiales.map((m) => (
-                <li key={m.id ?? m.clave}>
-                  <span className="mat-nombre">{m.nombre}</span>
-                  <span className="mat-cant">{cantidadTexto(m)}</span>
-                  <button type="button" className="quitar" aria-label={`Quitar ${m.nombre}`} onClick={() => setMateriales((ms) => ms.filter((x) => x !== m))}><IconoX /></button>
+                <li key={m.id ?? m.clave} className={m === editandoMat ? 'editando' : ''}>
+                  <button type="button" className="mat-editar" onClick={() => editarMaterial(m)} aria-label={`Cambiar ${m.nombre}`}>
+                    <span className="mat-nombre">{m.nombre}</span>
+                    <span className="mat-cant">{cantidadTexto(m)}</span>
+                  </button>
+                  <button type="button" className="quitar" aria-label={`Quitar ${m.nombre}`} onClick={() => { setMateriales((ms) => ms.filter((x) => x !== m)); if (m === editandoMat) { setEditandoMat(null); setNuevoMat((x) => ({ ...x, nombre: '', cantidad: '' })) } }}><IconoX /></button>
                 </li>
               ))}
             </ul>
@@ -674,7 +703,24 @@ function Formulario({ id, preset, nav, habitaciones }) {
             <select id="mat-unidad" value={nuevoMat.unidad} onChange={(e) => setNuevoMat((x) => ({ ...x, unidad: e.target.value }))} aria-label="Unidad">
               {UNIDADES.map((u) => <option key={u}>{u}</option>)}
             </select>
-            <button type="button" className="boton pequeño" onClick={añadirMaterial}>Añadir</button>
+            <button type="button" className="boton pequeño" onClick={añadirMaterial}>{editandoMat ? 'Cambiar' : 'Añadir'}</button>
+          </div>
+          {avisoLista && <p className="tenue pie aviso-lista" role="status">{avisoLista}</p>}
+          <div className="listas-materiales">
+            <button type="button" className="boton pequeño" aria-expanded={listasAbiertas} onClick={() => { setListasAbiertas((x) => !x); setAvisoLista('') }}>
+              {listasAbiertas ? 'Cerrar listas' : 'Agregar lista de materiales'}
+            </button>
+            {listasAbiertas && (
+              <div className="plantillas" role="group" aria-label="Listas de materiales por tipo de trabajo">
+                {ordenarPlantillas(t.titulo).map((p) => (
+                  <button key={p.id} type="button" className={`plantilla ${p.sugerida ? 'sugerida' : ''}`} onClick={() => usarLista(p)}>
+                    <span className="plantilla-icono" aria-hidden="true">{p.icono}</span>
+                    <span className="plantilla-nombre">{p.nombre}</span>
+                    <span className="plantilla-cuenta">{p.sugerida ? 'Sugerida · ' : ''}{p.materiales.length} materiales</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </fieldset>
 
