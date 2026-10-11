@@ -643,11 +643,19 @@ main.acceso .acceso-tarjeta { border-radius: 26px; padding: 22px 20px; }
 .compra-mat { display: flex; align-items: center; }
 .compra-mat label { flex: 1; min-width: 0; }
 .boton-ml {
-  text-decoration: none;
-  flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; min-height: 36px; padding: 6px 12px;
-  border-radius: 99px; font-size: 0.85rem; font-weight: 600; color: var(--tinta);
-  background: color-mix(in srgb, var(--ambar) 18%, var(--papel)); border: 1px solid color-mix(in srgb, var(--ambar) 55%, var(--linea));
+  flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; min-height: 36px; padding: 5px 12px 5px 8px;
+  border-radius: 99px; font-size: 0.82rem; font-weight: 700; line-height: 1.1; white-space: nowrap; text-decoration: none;
+  /* Mercado Libre's own yellow and blue, so the brand reads at a glance. */
+  color: #2d3277; background: #ffe600; border: 1px solid #e6cf00;
 }
+.boton-ml img { display: block; width: 26px; height: 18px; flex: none; }
+/* Narrow phones: "Ver / precios" on two lines so the material name keeps its room. */
+@media (max-width: 420px) {
+  .boton-ml { padding: 4px 10px 4px 7px; gap: 5px; margin-right: 8px; }
+  .boton-ml span { width: min-content; white-space: normal; }
+}
+.compra-mat .mat-nombre { overflow-wrap: break-word; }
+.nota-ml { margin-top: 10px; }
 .boton-ml:active { transform: scale(0.97); }
 .lista-ml { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 10px; }
 .ml-opcion {
