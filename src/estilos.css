@@ -467,6 +467,8 @@ main.acceso .acceso-tarjeta { border-radius: 26px; padding: 22px 20px; }
 .oferta-titulo { font-weight: 600; overflow-wrap: anywhere; }
 .oferta-meta { font-size: 0.85rem; color: var(--tinta-2); }
 .oferta-match { font-size: 0.8rem; font-weight: 600; color: var(--pino); }
+.recomendados a.oferta-tarjeta { color: inherit; text-decoration: none; }
+.recomendados .lista-ofertas + .boton { margin-top: 12px; }
 
 .hoja-fondo {
   position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center;

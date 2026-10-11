@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './db.js'
 import Ofertas from './Ofertas.jsx'
+import Recomendados from './Recomendados.jsx'
 import { IconoCategoria } from './Iconos.jsx'
 
 // "Ofertas" tab: sponsored offers (always visible, not only when something is left to buy)
@@ -109,6 +110,7 @@ export function PantallaOfertas() {
         materiales={materiales} max={Infinity} titulo="Descuentos"
         vacio={<section className="bloque ofertas"><h2>Descuentos</h2><p className="tenue">Por ahora no hay descuentos vigentes.</p></section>}
       />
+      <Recomendados />
     </main>
   )
 }
