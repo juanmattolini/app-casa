@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { buscarML, enlaceBusqueda, estimar, mlActivo, mlEnlace, mlPrecios, mlPrueba, useReferencias } from './mercadolibre.js'
 import { dinero } from './util.js'
+import logoML from './ml-logo.png'
 
-// Botón "Mercado Libre" junto a cada material por comprar, y la hoja con 3 opciones.
+// Botón "Ver precios" (con el logo de Mercado Libre) junto a cada material por comprar, y la hoja con 3 opciones.
 // Los enlaces son de afiliado: siempre se dice, igual que las ofertas dicen "Auspiciado".
 export function BotonML({ material, moneda }) {
   const [abierta, setAbierta] = useState(false)
@@ -11,20 +12,34 @@ export function BotonML({ material, moneda }) {
   if (mlEnlace) {
     return (
       <a className="boton-ml" href={enlaceBusqueda(material.nombre)} target="_blank" rel="noopener sponsored"
-        aria-label={`Buscar ${material.nombre} en Mercado Libre (enlace de afiliado)`}>
-        <IconoBolsa /> Comprar
+        aria-label={`Ver precios de ${material.nombre} en Mercado Libre (enlace de afiliado)`}>
+        <ContenidoBoton />
       </a>
     )
   }
   return (
     <>
-      <button type="button" className="boton-ml" onClick={() => setAbierta(true)} aria-label={`Ver ${material.nombre} en Mercado Libre`}>
-        <IconoBolsa /> Comprar
+      <button type="button" className="boton-ml" onClick={() => setAbierta(true)} aria-label={`Ver precios de ${material.nombre} en Mercado Libre`}>
+        <ContenidoBoton />
       </button>
       {/* Portal: the button lives inside the materials list, whose styles would leak into the sheet. */}
       {abierta && createPortal(<HojaML material={material} moneda={moneda} onCerrar={() => setAbierta(false)} />, document.body)}
     </>
   )
+}
+
+// The logo already says "Mercado Libre", so the label stays short enough for a phone row.
+const ContenidoBoton = () => (
+  <>
+    <img src={logoML} alt="" width="26" height="18" />
+    <span>Ver precios</span>
+  </>
+)
+
+// Under the shopping list: the buttons are affiliate links, and the app says so.
+export function NotaAfiliado() {
+  if (!mlActivo) return null
+  return <p className="tenue pie nota-ml">"Ver precios" abre Mercado Libre con un enlace de afiliado.</p>
 }
 
 function HojaML({ material, moneda, onCerrar }) {

@@ -6,7 +6,7 @@ import { exportar, leerCopia, restaurar } from './respaldo.js'
 import { prepararFoto } from './imagenes.js'
 import Nube, { Avatar, useUsuario } from './Nube.jsx'
 import Ofertas from './Ofertas.jsx'
-import { BotonML, EstimadoMateriales, PresupuestoSugerido } from './MercadoLibre.jsx'
+import { BotonML, EstimadoMateriales, NotaAfiliado, PresupuestoSugerido } from './MercadoLibre.jsx'
 import { IconoCategoria } from './Iconos.jsx'
 import { PantallaOfertas } from './Cercanos.jsx'
 import { alternarTema, temaEfectivo, useTema } from './tema.js'
@@ -775,6 +775,7 @@ function Compras({ nav, nombreHab }) {
           </ul>
         </section>
       ))}
+      {total > 0 && <NotaAfiliado />}
       {total > 0 && (
         <Ofertas materiales={(datos ?? []).flatMap((g) => g.materiales.filter((m) => !m.comprado).map((m) => m.nombre))} />
       )}
