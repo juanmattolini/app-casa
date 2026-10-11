@@ -28,7 +28,7 @@ jobs:
         env:
           # Mercado Libre: botón "Comprar" que abre la búsqueda (la API de búsqueda está bloqueada). Ver README.
           VITE_ML: enlace
-          VITE_ML_AFILIADO: ''
+          VITE_ML_AFILIADO: matt_word=jua_mattolini&matt_tool=30717397
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
