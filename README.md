@@ -63,6 +63,11 @@ Los materiales propuestos tienen el botón "Ver precios" de Mercado Libre.
   `ASISTENTE_MODELO` (`claude-opus-5-5` por defecto; `claude-haiku-5-5` es mucho más barato).
 - Desplegar: `supabase functions deploy asistente` (con verificación de JWT, que es lo normal).
 - En la app se activa con `VITE_ASISTENTE` al compilar (en `.github/workflows/publicar.yml`): vacío = apagado,
-  `prueba` = respuestas simuladas en el dispositivo, `si` = usa la función. También se puede probar abriendo
-  la app con `?asistente=prueba` (queda guardado en ese dispositivo; `?asistente=no` lo apaga).
+  `basico` = asistente básico gratis (ver abajo), `si` = usa la función con Claude. También se puede cambiar
+  abriendo la app con `?asistente=basico` o `?asistente=si` (queda guardado en ese dispositivo; `?asistente=no` lo apaga).
+- **Asistente básico** (`src/asistente-basico.js`, el que está publicado): sin IA, sin servidor y sin costo. Reconoce
+  palabras de la pregunta y responde con pasos cortos y la lista de materiales de `plantillas.js` (canilla, inodoro,
+  destapar, enchufe, lámparas, cuadro, estante, silicona, pastina, techo, moho, césped, más una guía por tipo de
+  trabajo); con gas siempre deriva a un gasista. También contesta "¿qué hago primero?" (vencidas, después prioridad
+  alta, después las que vencen antes) y "¿qué tengo que comprar?". Para sumar temas, agregar entradas en `TEMAS`.
 - La conversación queda solo en el dispositivo; se borra con "Borrar charla".

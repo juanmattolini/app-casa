@@ -1,6 +1,6 @@
 import { db } from './db.js'
 import { nube } from './nube.js'
-import { normal } from './Ofertas.jsx'
+import { responderBasico } from './asistente-basico.js'
 import { cantidadTexto } from './util.js'
 
 // Asistente: chat sobre la casa que responde la Edge Function "asistente" (supabase/functions/asistente) con Claude.
@@ -8,8 +8,9 @@ import { cantidadTexto } from './util.js'
 //
 // Modo (VITE_ASISTENTE al compilar, o ?asistente=... en la dirección, que queda guardado en este dispositivo):
 //   ''/no    apagado: no se muestra nada (por defecto)
-//   prueba   respuestas simuladas en el propio dispositivo, para ver la pantalla sin servidor ni costo
-//   si       llama a la función de verdad (necesita sesión iniciada)
+//   basico   respuestas armadas en el dispositivo (asistente-basico.js): sin IA, sin servidor y gratis
+//   si       llama a la función con Claude (necesita sesión iniciada y tiene costo)
+// ("prueba" es lo mismo que "basico".)
 
 const CLAVE_MODO = 'app-casa-asistente-modo'
 const CLAVE_CHARLA = 'app-casa-asistente'
@@ -25,8 +26,8 @@ function leerModo() {
   }
 }
 const MODO = leerModo()
-export const asistentePrueba = MODO === 'prueba'
-export const asistenteActivo = asistentePrueba || (MODO === 'si' && !!nube)
+export const asistenteBasico = MODO === 'basico' || MODO === 'prueba'
+export const asistenteActivo = asistenteBasico || (MODO === 'si' && !!nube)
 
 // La conversación queda en este dispositivo (no se sincroniza).
 export function leerCharla() {
@@ -73,7 +74,7 @@ export async function preguntar(mensajes, focoId) {
     role: m.role,
     content: m.content + (m.propuestas?.length ? `\n\n[Propuse la tarea: ${m.propuestas.map((t) => t.titulo).join('; ')}]` : ''),
   }))
-  if (asistentePrueba) return simulado(historial[historial.length - 1]?.content ?? '')
+  if (asistenteBasico) return responderBasico(historial[historial.length - 1]?.content ?? '')
   const contexto = await contextoCasa(focoId)
   const { data, error } = await nube.functions.invoke('asistente', { body: { mensajes: historial, contexto } })
   if (data?.error) throw new Error(data.error)
@@ -84,31 +85,4 @@ export async function preguntar(mensajes, focoId) {
     throw new Error(motivo ?? 'El asistente no respondió. Revisá la conexión y probá de nuevo.')
   }
   return data
-}
-
-// Respuestas inventadas para probar la pantalla sin servidor.
-function simulado(pregunta) {
-  const p = normal(pregunta)
-  const espera = new Promise((r) => setTimeout(r, 700))
-  if (/canilla|gotea|grifo/.test(p)) {
-    return espera.then(() => ({
-      texto: 'Si la canilla gotea, casi siempre es el cuerito o el vástago gastado.\n\n1. Cerrá la llave de paso.\n2. Desarmá la canilla y fijate el cuerito.\n3. Cambialo por uno de la misma medida y volvé a armar con cinta de teflón.\n\nSi querés, te dejo la tarea anotada con los materiales.',
-      propuestas: [{
-        titulo: 'Arreglar la canilla que gotea', habitacion: 'Cocina', prioridad: 'media',
-        notas: 'Cerrar la llave de paso antes de desarmar.',
-        materiales: [
-          { nombre: 'cuerito para canilla', cantidad: 2, unidad: 'ud' },
-          { nombre: 'cinta de teflón', cantidad: 1, unidad: 'rollos' },
-        ],
-      }],
-      restantes: 29,
-      prueba: true,
-    }))
-  }
-  return espera.then(() => ({
-    texto: 'Esto es una respuesta de prueba: el asistente de verdad todavía no está conectado. Probá preguntar "¿cómo arreglo una canilla que gotea?" para ver cómo propone una tarea.',
-    propuestas: [],
-    restantes: 30,
-    prueba: true,
-  }))
 }

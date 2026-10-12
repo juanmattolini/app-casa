@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './db.js'
-import { asistentePrueba, guardarCharla, leerCharla, preguntar } from './asistente.js'
+import { asistenteBasico, guardarCharla, leerCharla, preguntar } from './asistente.js'
 import { useUsuario } from './Nube.jsx'
 import { BotonML, NotaAfiliado } from './MercadoLibre.jsx'
 import { BarraSuperior, useMoneda } from './App.jsx'
@@ -12,6 +12,7 @@ const SUGERENCIAS = [
   '¿Cómo arreglo una canilla que gotea?',
   '¿Qué necesito para pintar una habitación?',
   '¿Qué tarea me conviene hacer primero?',
+  '¿Qué tengo que comprar?',
 ]
 
 // Pantalla de chat. Con focoId (desde el detalle de una tarea) el asistente sabe de qué tarea se habla.
@@ -23,7 +24,7 @@ export default function Asistente({ nav, focoId }) {
   const [esperando, setEsperando] = useState(false)
   const [restantes, setRestantes] = useState(null)
   const final = useRef(null)
-  const necesitaSesion = !asistentePrueba && !usuario
+  const necesitaSesion = !asistenteBasico && !usuario
 
   useEffect(() => { guardarCharla(mensajes) }, [mensajes])
   useEffect(() => { final.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [mensajes, esperando])
@@ -89,7 +90,7 @@ export default function Asistente({ nav, focoId }) {
           </>
         )}
         <p className="asis-pie tenue">
-          {asistentePrueba ? 'Modo de prueba: respuestas simuladas.' : 'Responde una IA (Claude) y puede equivocarse.'}
+          {asistenteBasico ? 'Asistente básico: respuestas armadas en la app, sin IA y sin costo.' : 'Responde una IA (Claude) y puede equivocarse.'}
           {restantes != null && ` Te quedan ${restantes} consultas hoy.`}
         </p>
       </form>
