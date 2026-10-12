@@ -691,3 +691,52 @@ main.acceso .acceso-tarjeta { border-radius: 26px; padding: 22px 20px; }
 .estimado-ml { margin: 10px 0 0; }
 .sugerido-ml { margin-top: 26px; }
 .sugerido-ml h2 { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- Asistente (chat) ---------- */
+.fab.fab-asistente {
+  bottom: calc(var(--pestanas-alto) + 88px + env(safe-area-inset-bottom, 0px));
+  width: 52px; height: 52px; border-radius: 18px; margin-right: 4px;
+  background: var(--papel); color: var(--pino); border: 1px solid var(--linea); box-shadow: var(--sombra-suave);
+}
+.asistente { display: flex; flex-direction: column; min-height: 100dvh; padding-bottom: 0; }
+.asis-foco { margin: 0 0 8px; padding: 8px 12px; border-radius: 12px; background: var(--papel-2); border: 1px solid var(--linea); font-size: 0.9rem; }
+.asis-intro { display: grid; gap: 8px; padding: 24px 4px 8px; }
+.asis-intro .vacio-titulo { margin: 0; }
+.asis-intro p { margin: 0; }
+.asis-sugerencias { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.asis-sugerencias .chip { white-space: normal; text-align: left; }
+.asis-mensajes { list-style: none; margin: 0; padding: 8px 0 16px; display: grid; gap: 10px; flex: 1; align-content: start; }
+.asis-msj { max-width: 88%; display: grid; gap: 10px; }
+.asis-msj p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.asis-msj.user { justify-self: end; }
+.asis-msj.user p { padding: 10px 14px; border-radius: 18px 18px 4px 18px; background: linear-gradient(140deg, var(--pino), var(--pino-2)); color: var(--sobre-pino); }
+.asis-msj.assistant { justify-self: start; }
+.asis-msj.assistant > p { padding: 12px 14px; border-radius: 18px 18px 18px 4px; background: var(--papel); border: 1px solid var(--linea); box-shadow: var(--sombra-suave); }
+.asis-msj.error p { padding: 10px 14px; border-radius: 14px; color: var(--rojo); background: color-mix(in srgb, var(--rojo) 8%, var(--papel)); }
+.asis-msj.pensando { display: flex; gap: 5px; padding: 14px 16px; border-radius: 18px; background: var(--papel); border: 1px solid var(--linea); }
+.asis-msj.pensando span { width: 7px; height: 7px; border-radius: 50%; background: var(--tinta-2); animation: pulso 0.6s ease-in-out infinite alternate; }
+.asis-msj.pensando span:nth-child(2) { animation-delay: 0.2s; }
+.asis-msj.pensando span:nth-child(3) { animation-delay: 0.4s; }
+.asis-propuesta { display: grid; gap: 10px; padding: 14px; border-radius: var(--radio); background: var(--papel-2); border: 1px dashed color-mix(in srgb, var(--pino) 45%, var(--linea)); }
+.asis-propuesta .aus { justify-self: start; }
+.asis-propuesta h3 { margin: 0; font-family: var(--f-titulo); font-size: 1.15rem; line-height: 1.2; }
+.asis-propuesta > p { margin: -6px 0 0; }
+.asis-propuesta .materiales li { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+.asis-mat { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.asis-entrada {
+  position: sticky; bottom: 0; z-index: 3; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end;
+  margin: 0 -16px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--suelo) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-top: 1px solid var(--linea);
+}
+.asis-entrada textarea {
+  width: 100%; min-height: 48px; max-height: 140px; resize: none; field-sizing: content; padding: 12px 14px; font: inherit;
+  border-radius: var(--radio-campo); border: 1px solid var(--linea); background: var(--papel); color: var(--tinta);
+}
+.asis-entrada .boton { width: 48px; padding: 0; }
+.asis-entrada > p { grid-column: 1 / -1; margin: 0; }
+.asis-pie { font-size: 0.78rem; }
+@media (min-width: 900px) {
+  .fab.fab-asistente { bottom: 112px; right: 44px; }
+  .asis-entrada { margin: 0 -40px; padding-inline: 40px; }
+}
