@@ -29,6 +29,8 @@ jobs:
           # Mercado Libre: botón "Comprar" que abre la búsqueda (la API de búsqueda está bloqueada). Ver README.
           VITE_ML: enlace
           VITE_ML_AFILIADO: matt_word=jua_mattolini&matt_tool=30717397
+          # Asistente: basico = gratis, sin IA; 'si' = Claude (cuando la función y la clave estén cargadas). Ver README.
+          VITE_ASISTENTE: basico
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist

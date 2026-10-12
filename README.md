@@ -47,3 +47,27 @@ sugerido de los materiales con el precio de referencia (mediana de los primeros 
 - Ojo (2026-10): Mercado Libre responde 403 "PolicyAgent" a `/sites/.../search` y `/products/search` con el
   token de aplicación, aunque las credenciales sean válidas. Hasta que habilite la búsqueda, usar `enlace`. También se puede probar abriendo la app con `?ml=prueba`
   (queda guardado en ese dispositivo; `?ml=no` lo apaga).
+
+## Asistente (chat con IA)
+
+Botón de chat en Tareas (y "Preguntar al asistente" en cada tarea). Responde dudas de la casa usando las
+tareas pendientes, materiales, habitaciones y aparatos como contexto, y puede proponer una tarea nueva con
+su lista de materiales: la app la abre en "Nueva tarea" para revisarla y recién se guarda con "Guardar tarea".
+Los materiales propuestos tienen el botón "Ver precios" de Mercado Libre.
+
+- Lo responde la Edge Function `supabase/functions/asistente` con Claude (API de Anthropic). La clave vive
+  solo en el servidor. Necesita sesión iniciada.
+- **Cada consulta tiene costo** en la cuenta de Anthropic. Hay un límite diario por usuario y cada día queda
+  registrado cuántas consultas y tokens se usaron en la tabla `asistente_uso` (migración `20261012000000_asistente.sql`).
+- Secrets de la función: `ANTHROPIC_API_KEY` (obligatoria), `ASISTENTE_LIMITE_DIARIO` (30 por defecto) y
+  `ASISTENTE_MODELO` (`claude-opus-5-5` por defecto; `claude-haiku-5-5` es mucho más barato).
+- Desplegar: `supabase functions deploy asistente` (con verificación de JWT, que es lo normal).
+- En la app se activa con `VITE_ASISTENTE` al compilar (en `.github/workflows/publicar.yml`): vacío = apagado,
+  `basico` = asistente básico gratis (ver abajo), `si` = usa la función con Claude. También se puede cambiar
+  abriendo la app con `?asistente=basico` o `?asistente=si` (queda guardado en ese dispositivo; `?asistente=no` lo apaga).
+- **Asistente básico** (`src/asistente-basico.js`, el que está publicado): sin IA, sin servidor y sin costo. Reconoce
+  palabras de la pregunta y responde con pasos cortos y la lista de materiales de `plantillas.js` (canilla, inodoro,
+  destapar, enchufe, lámparas, cuadro, estante, silicona, pastina, techo, moho, césped, más una guía por tipo de
+  trabajo); con gas siempre deriva a un gasista. También contesta "¿qué hago primero?" (vencidas, después prioridad
+  alta, después las que vencen antes) y "¿qué tengo que comprar?". Para sumar temas, agregar entradas en `TEMAS`.
+- La conversación queda solo en el dispositivo; se borra con "Borrar charla".

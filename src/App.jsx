@@ -10,6 +10,8 @@ import { BotonML, EstimadoMateriales, NotaAfiliado, PresupuestoSugerido } from '
 import { IconoCategoria } from './Iconos.jsx'
 import { materialesDePlantilla, ordenarPlantillas } from './plantillas.js'
 import { PantallaOfertas } from './Cercanos.jsx'
+import Asistente from './Asistente.jsx'
+import { asistenteActivo } from './asistente.js'
 import { alternarTema, temaEfectivo, useTema } from './tema.js'
 import { Casa, DetalleAparato, DetalleContacto, FormAparato, FormContacto, mismoNombre } from './Casa.jsx'
 import { aNumero, cantidadTexto, diasDeRetraso, dinero, fechaCorta, grupoDe, recordatorioTexto, useBlobUrl } from './util.js'
@@ -70,6 +72,7 @@ export default function App() {
       {actual.pantalla === 'ofertas' && <PantallaOfertas />}
       {actual.pantalla === 'gastos' && <Gastos nav={nav} nombreHab={nombreHab} />}
       {actual.pantalla === 'ajustes' && <Ajustes habitaciones={habitaciones} />}
+      {actual.pantalla === 'asistente' && <Asistente nav={nav} focoId={actual.tareaId} />}
       {/* Bottom tab bar on the phone (main screens only); a fixed side bar on wide screens (always). */}
       <nav className={`pestanas ${pestaña ? '' : 'interior'}`} aria-label="Secciones">
         <div className="lateral-marca">
@@ -104,7 +107,7 @@ export default function App() {
 }
 
 // Which section an inner screen belongs to, to highlight it in the side bar.
-const SECCION_DE = { detalle: 'inicio', formulario: 'inicio', aparato: 'casa', aparatoForm: 'casa', contacto: 'casa', contactoForm: 'casa' }
+const SECCION_DE = { detalle: 'inicio', formulario: 'inicio', asistente: 'inicio', aparato: 'casa', aparatoForm: 'casa', contacto: 'casa', contactoForm: 'casa' }
 
 function BotonTema({ conTexto = false }) {
   const [tema] = useTema()
@@ -261,6 +264,11 @@ function Inicio({ nav, nombreHab, habitaciones }) {
         </section>
       )}
 
+      {asistenteActivo && (
+        <button className="fab fab-asistente" onClick={() => nav.ir({ pantalla: 'asistente' })} aria-label="Asistente">
+          <IconoChat />
+        </button>
+      )}
       <button className="fab" onClick={() => nav.ir({ pantalla: 'formulario' })} aria-label="Nueva tarea">
         <IconoMas />
       </button>
@@ -395,6 +403,11 @@ function Detalle({ id, nav, nombreHab }) {
           <button className="boton primario" onClick={() => alternarHecha(tarea)}>
             {hecha ? 'Marcar como pendiente' : 'Marcar como hecha'}
           </button>
+          {asistenteActivo && !hecha && (
+            <button className="boton ancho" onClick={() => nav.ir({ pantalla: 'asistente', tareaId: id })}>
+              <IconoChat /> Preguntar al asistente
+            </button>
+          )}
           {confirmando ? (
             <div className="confirmar">
               <span>¿Borrar esta tarea con sus materiales y fotos?</span>
@@ -447,12 +460,13 @@ const UNIDADES = ['ud', 'L', 'kg', 'm', 'm²', 'rollo', 'caja', 'cartucho', 'bol
 function Formulario({ id, preset, nav, habitaciones }) {
   const [cargado, setCargado] = useState(!id)
   const [t, setT] = useState({
-    titulo: '', notas: '', habitacionId: preset?.habitacionId ?? '', prioridad: 'media', fechaLimite: '', recFecha: '', recHora: '', repetir: '',
+    titulo: preset?.titulo ?? '', notas: preset?.notas ?? '', habitacionId: preset?.habitacionId ?? '', prioridad: preset?.prioridad ?? 'media', fechaLimite: '', recFecha: '', recHora: '', repetir: '',
     aparatoId: preset?.aparatoId ?? '', quien: '', contactoId: '', tiempo: '', costo: '',
   })
   const aparatos = useLiveQuery(() => db.aparatos.orderBy('nombre').toArray(), [], [])
   const contactos = useLiveQuery(() => db.contactos.orderBy('nombre').toArray(), [], [])
-  const [materiales, setMateriales] = useState([])
+  // From the assistant: a proposed task arrives with its materials (still unsaved until Guardar).
+  const [materiales, setMateriales] = useState(() => (preset?.materiales ?? []).map((m) => ({ ...m, clave: crypto.randomUUID?.() ?? String(Math.random()), comprado: false })))
   const [fotos, setFotos] = useState([]) // existing {id, miniatura} and new {clave, imagen, miniatura}
   const [borradas, setBorradas] = useState([])
   const [nuevoMat, setNuevoMat] = useState({ nombre: '', cantidad: '', unidad: 'ud' })
@@ -1310,4 +1324,5 @@ const IconoOferta = () => <svg {...svg}><path d="M3.5 12V4.5H11l9.5 9.5-7.5 7.5z
 const IconoSol = () => <svg {...svg} width={18} height={18}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" /></svg>
 const IconoLuna = () => <svg {...svg} width={18} height={18}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>
 const IconoAuto = () => <svg {...svg} width={18} height={18}><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5v17A8.5 8.5 0 0 0 12 3.5z" fill="currentColor" /></svg>
+const IconoChat = () => <svg {...svg}><path d="M4 5.5h16v10H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></svg>
 const IconoCasa = () => <svg {...svg}><path d="M3.5 11 12 4l8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M10 20v-5h4v5" /></svg>
