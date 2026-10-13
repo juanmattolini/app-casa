@@ -16,9 +16,16 @@ async function serializar(fila) {
   return out
 }
 
+// Only data: URLs, so a doctored backup can't make the app fetch anything from the internet.
+const esDataUrl = (v) => typeof v === 'string' && v.startsWith('data:')
+
 async function deserializar(fila) {
   const out = {}
-  for (const [k, v] of Object.entries(fila)) out[k] = v && typeof v === 'object' && v.__blob ? await (await fetch(v.__blob)).blob() : v
+  for (const [k, v] of Object.entries(fila)) {
+    if (!(v && typeof v === 'object' && '__blob' in v)) out[k] = v
+    else if (esDataUrl(v.__blob)) out[k] = await (await fetch(v.__blob)).blob()
+    else throw new Error('La copia tiene un archivo dañado.')
+  }
   return out
 }
 
