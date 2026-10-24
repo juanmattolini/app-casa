@@ -965,6 +965,13 @@ function Ajustes({ habitaciones }) {
         )}
         {mensaje && <p className={mensaje.error ? 'error' : 'tenue'} role="status">{mensaje.texto}</p>}
       </section>
+      <section className="bloque">
+        <h2>Acerca de</h2>
+        <p className="tenue">App Casa la diseñó y la desarrolló Juan Mattolini.</p>
+        <div className="botones-foto">
+          <a className="boton" href="https://juanmattolini.github.io/portfolio/" target="_blank" rel="noopener">Ver portfolio</a>
+        </div>
+      </section>
     </main>
   )
 }
