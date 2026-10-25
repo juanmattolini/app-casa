@@ -384,6 +384,7 @@ function Detalle({ id, nav, nombreHab }) {
               ))}
             </ul>
           )}
+          {!hecha && <AñadirMateriales tarea={tarea} materiales={materiales} />}
           {!hecha && materiales.some((m) => !m.comprado) && <NotaAfiliado />}
           {!hecha && <EstimadoMateriales materiales={materiales} moneda={moneda} />}
         </section>
@@ -449,6 +450,62 @@ export function Visor({ blob, onCerrar }) {
     <div className="visor" role="dialog" aria-label="Foto" onClick={onCerrar}>
       {url && <img src={url} alt="" />}
       <button className="visor-cerrar" aria-label="Cerrar"><IconoX /></button>
+    </div>
+  )
+}
+
+// Add materials straight from the task's detail, without going through Editar.
+function AñadirMateriales({ tarea, materiales }) {
+  const [nuevo, setNuevo] = useState({ nombre: '', cantidad: '', unidad: 'ud' })
+  const [listasAbiertas, setListasAbiertas] = useState(false)
+  const [aviso, setAviso] = useState('')
+
+  const añadir = async () => {
+    const nombre = nuevo.nombre.trim()
+    if (!nombre) return
+    const cantidad = nuevo.cantidad === '' ? null : Number(String(nuevo.cantidad).replace(',', '.'))
+    await db.materiales.add({ tareaId: tarea.id, nombre, cantidad: Number.isNaN(cantidad) ? null : cantidad, unidad: nuevo.unidad, comprado: false, nota: '' })
+    setNuevo({ nombre: '', cantidad: '', unidad: nuevo.unidad })
+    setAviso('')
+  }
+
+  const usarLista = async (p) => {
+    const nuevos = materialesDePlantilla(p, materiales)
+    await db.materiales.bulkAdd(nuevos.map((m) => ({ tareaId: tarea.id, nombre: m.nombre, cantidad: m.cantidad, unidad: m.unidad, comprado: false, nota: m.nota ?? '' })))
+    setListasAbiertas(false)
+    setAviso(nuevos.length === 0
+      ? `Ya tenías todos los materiales de ${p.nombre}.`
+      : `${nuevos.length === 1 ? 'Se añadió 1 material' : `Se añadieron ${nuevos.length} materiales`} de ${p.nombre}. Puedes quitarlos desde Editar.`)
+  }
+
+  return (
+    <div className="añadir-materiales">
+      <div className="nuevo-material">
+        <input id="det-mat-nombre" placeholder="Material" value={nuevo.nombre} onChange={(e) => setNuevo((x) => ({ ...x, nombre: e.target.value }))}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); añadir() } }} aria-label="Nombre del material" />
+        <input id="det-mat-cant" inputMode="decimal" placeholder="Cant." value={nuevo.cantidad} onChange={(e) => setNuevo((x) => ({ ...x, cantidad: e.target.value }))} aria-label="Cantidad" />
+        <select id="det-mat-unidad" value={nuevo.unidad} onChange={(e) => setNuevo((x) => ({ ...x, unidad: e.target.value }))} aria-label="Unidad">
+          {UNIDADES.map((u) => <option key={u}>{u}</option>)}
+        </select>
+        <button type="button" className="boton pequeño" onClick={añadir}>Añadir</button>
+      </div>
+      {aviso && <p className="tenue pie aviso-lista" role="status">{aviso}</p>}
+      <div className="listas-materiales">
+        <button type="button" className="boton pequeño" aria-expanded={listasAbiertas} onClick={() => { setListasAbiertas((x) => !x); setAviso('') }}>
+          {listasAbiertas ? 'Cerrar listas' : 'Agregar lista de materiales'}
+        </button>
+        {listasAbiertas && (
+          <div className="plantillas" role="group" aria-label="Listas de materiales por tipo de trabajo">
+            {ordenarPlantillas(tarea.titulo).map((p) => (
+              <button key={p.id} type="button" className={`plantilla ${p.sugerida ? 'sugerida' : ''}`} onClick={() => usarLista(p)}>
+                <span className="plantilla-icono" aria-hidden="true">{p.icono}</span>
+                <span className="plantilla-nombre">{p.nombre}</span>
+                <span className="plantilla-cuenta">{p.sugerida ? 'Sugerida · ' : ''}{p.materiales.length} materiales</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
